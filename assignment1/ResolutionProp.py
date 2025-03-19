@@ -67,6 +67,19 @@ def resolve(C1: list, C2: list) -> list:
                 return i, j, sigma, resolvent
     return None
 
+
+def backtrace(steps, index, chain):
+    """
+    递归回溯步骤链，将产生空子句证明过程中涉及的步骤索引加入 chain 集合中。
+    """
+    if index in chain:
+        return
+    chain.add(index)
+    if steps[index]['parents'] is not None:
+        for parent in steps[index]['parents']:
+            backtrace(steps, parent, chain)
+
+
 def ResolutionProp(KB: str):
     """Resolution for propositional logic.
     Args:
@@ -75,7 +88,8 @@ def ResolutionProp(KB: str):
         list of dict, steps of resolution
     """
     clauses = kb2list(KB)
-    steps = [{'clauses': None, 'sigma': None, 'resolvent': clause} for clause in clauses]
+    steps = [{'parents': None, 'clauses': None, 'sigma': None,
+              'resolvent': clause} for clause in clauses]
     while True:
         new_steps = []
         for i in range(len(steps)):
@@ -89,36 +103,62 @@ def ResolutionProp(KB: str):
                 if resolvent in [step['resolvent'] for step in steps]:
                     continue
 
-                new_step = {'clauses': [], 'sigma': sigma, 'resolvent': resolvent}
-                new_step['clauses'].append(str(i + 1) + (chr(k1 + 97) if len(C1) > 1 else ''))
-                new_step['clauses'].append(str(j + 1) + (chr(k2 + 97) if len(C2) > 1 else ''))
+                new_step = {
+                    'parents': [i, j],
+                    'clauses': [chr(k1 + 97) if len(C1) > 1 else '',
+                                chr(k2 + 97) if len(C2) > 1 else ''],
+                    'sigma': sigma,
+                    'resolvent': resolvent
+                }
                 new_steps.append(new_step)
-                # new_steps.append({'clauses': [str(i+1) + chr(k1+65), str(j+1) + chr(k2+65)], 'sigma': sigma, 'resolvent': resolvent})
-                if resolvent == []:
-                    return steps + new_steps
-        steps += new_steps
+
+                if resolvent == []: # Find resolution
+                    # Backtrace to find all steps involved in the proof
+                    steps.append(new_step)
+                    empty_index = len(steps) - 1
+                    chain_indices = set(range(len(clauses)))
+                    backtrace(steps, empty_index, chain_indices)
+                    chain_indices = sorted(chain_indices)
+                    proof_steps = [steps[idx] for idx in chain_indices]
+
+                    # Change parent index
+                    for step in proof_steps:
+                        if step['parents'] is not None:
+                            step['parents'] = [
+                                chain_indices.index(p) for p in step['parents']]
+
+                    return proof_steps
+        steps.extend(new_steps)
         if not new_steps:
-            return steps
+            return None
 
 
 if __name__ == "__main__":
     KB = [
         '{(firstgrade,),(~firstgrade,child),(~child,)}',
-        '{(GradStudent(sue),),(~GradStudent(x),Student(x)),(~Student(x),~HardWorker(x)),(HardWorker(sue),)}',
-        '{(A(tony),),(A(mike),),(A(john),),(L(tony,rain),),(L(tony,snow),),(~A(x),S(x),C(x)),'
-        '(~C(y),~L(y,rain)),(L(z,snow),~S(z)),(~L(tony,u),~L(mike,u)),'
+        '{(GradStudent(sue),),(~GradStudent(x),Student(x)),'
+        '(~Student(x),~HardWorker(x)),(HardWorker(sue),)}',
+        '{(A(tony),),(A(mike),),(A(john),),(L(tony,rain),),'
+        '(L(tony,snow),),(~A(x),S(x),C(x)),(~C(y),~L(y,rain)),'
+        '(L(z,snow),~S(z)),(~L(tony,u),~L(mike,u)),'
         '(L(tony,v),L(mike,v)),(~A(w),~C(w),S(w))}',
         '{(On(tony,mike),),(On(mike,john),),(Green(tony),),(~Green(john),),'
         '(~On(xx,yy),~Green(xx),Green(yy))}'
     ]
     steps = ResolutionProp(KB[3])
-    for k, step in enumerate(steps):
-        out_str = str(k+1)
-        if step['clauses']:
-            out_str += ' R[' + ','.join(step['clauses']) + ']'
-        if step['sigma']:
-            sigma_str = ''.join(f"{key}={val}" for key, val in step['sigma'].items())
-            out_str += '{' + sigma_str + '}'
-        out_str += ' = (' + ','.join(step['resolvent']) + ')'
-        print(out_str)
+    if steps is None:
+        print('No proof found.')
+    else:
+        for k, step in enumerate(steps):
+            out_str = str(k+1)
+            if step['parents']:
+                out_str += ' ({})'.format(','.join(
+                    [str(step['parents'][k]+1) + step['clauses'][k]
+                     for k in range(2)]))
+            if step['sigma']:
+                sigma_str = ''.join(
+                    f"{key}={val}" for key, val in step['sigma'].items())
+                out_str += '{' + sigma_str + '}'
+            out_str += ' = (' + ','.join(step['resolvent']) + ')'
+            print(out_str)
 
