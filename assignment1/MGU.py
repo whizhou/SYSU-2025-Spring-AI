@@ -18,8 +18,7 @@ def occurs(var, term, subst):
         return term.name == var.name
     elif isinstance(term, Function):
         return any(occurs(var, arg, subst) for arg in term.args)
-    else:
-        return False
+    return False
 
 
 def unify(t1, t2):
@@ -46,43 +45,27 @@ def unify(t1, t2):
             continue
         elif isinstance(s, Variable):
             if occurs(s, t, sigma):
-                # 循环引用，合一失败
                 return None
-            else:
-                # 记录替换 s -> t
-                sigma[s.name] = t
-                # 将该替换应用到剩余的方程中
-                new_equations = []
-                for l, r in equations:
-                    new_l = apply_subst(l, {s.name: t})
-                    new_r = apply_subst(r, {s.name: t})
-                    new_equations.append((new_l, new_r))
-                equations = new_equations
-                # 同时更新已有替换
-                for var in sigma:
-                    sigma[var] = apply_subst(sigma[var], {s.name: t})
+            # place s with t
+            sigma[s.name] = t
+            equations = [(apply_subst(l, {s.name: t}), apply_subst(r, {s.name: t})) for l, r in equations]
+            # update sigma
+            sigma = {var: apply_subst(term, {s.name: t}) for var, term in sigma.items()}
         elif isinstance(t, Variable):
-            # 对称处理
+            # symmetric case
             if occurs(t, s, sigma):
                 return None
-            else:
-                sigma[t.name] = s
-                new_equations = []
-                for l, r in equations:
-                    new_l = apply_subst(l, {t.name: s})
-                    new_r = apply_subst(r, {t.name: s})
-                    new_equations.append((new_l, new_r))
-                equations = new_equations
-                for var in sigma:
-                    sigma[var] = apply_subst(sigma[var], {t.name: s})
+            sigma[t.name] = s
+            equations = [(apply_subst(l, {t.name: s}), apply_subst(r, {t.name: s})) for l, r in equations]
+            sigma = {var: apply_subst(term, {t.name: s}) for var, term in sigma.items()}
         elif isinstance(s, Function) and isinstance(t, Function):
             if s.name != t.name or len(s.args) != len(t.args):
                 return None
             else:
-                # 将 s 与 t 分解为各对应的参数方程
+                # add sub-equations
                 equations = list(zip(s.args, t.args)) + equations
         else:
-            # 不匹配的情况
+            # not match
             return None
     return sigma
 
@@ -98,25 +81,26 @@ def MGU(str1, str2):
     """
     term1 = parse_term(str1)
     term2 = parse_term(str2)
-    result = unify(term1, term2)
-    if result is None:
+    sigma = unify(term1, term2)
+    if sigma is None:
         return None
-    term1 = apply_subst(term1, result)
-    term2 = apply_subst(term2, result)
+    term1 = apply_subst(term1, sigma)
+    term2 = apply_subst(term2, sigma)
     assert term1.__repr__() == term2.__repr__()
-    return result, term1.__repr__()
+    return sigma, term1.__repr__()
 
 
 # test examples
 if __name__ == '__main__':
-    input1 = ['P(xx, a)', 'P(a,xx, f(g(yy)))', 'P(a,x,h(g(z)))', 'first']
-    input2 = ['P(b, yy)', 'P(zz, f(zz),f(uu))', 'P(z,h(y),h(y))', '~first']
-    input_dim = 2
-    mgu_result = MGU(input1[input_dim], input2[input_dim])
+    input1 = ['P(xx,a)', 'P(a,xx,f(g(yy)))', 'P(a,x,h(g(z)))']
+    input2 = ['P(b,yy)', 'P(zz,f(zz),f(uu))', 'P(z,h(y),h(y))']
+    test_id = 1
+    mgu_result = MGU(input1[test_id], input2[test_id])
     if mgu_result is None:
         print("Failed to unify.")
     else:
         # print("Unification success.")
         sigma, term = mgu_result
-        for var, term in sigma.items():
-            print(f"  {var} -> {term}")
+        print(sigma)
+        # for var, term in sigma.items():
+            # print(f"  {var} -> {term}")
