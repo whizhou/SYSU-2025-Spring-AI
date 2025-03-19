@@ -1,9 +1,17 @@
 # 人工智能 lab1 命题逻辑的归结推理
 # 23336020 周子健
 
-from MGU import *
+from TermParser import parse_term, apply_subst
+from MGU import MGU
+from RP_components import is_neg, is_diff, to_pos, to_neg
 
 def reslove_KB2set(KB: str) -> set:
+    """Convert knowledge base string to a set of clauses.
+    Args:
+        KB: str, knowledge base string
+    Returns:
+        clauses: list of list of str
+    """
     KB = KB[2:-2].split('),(')
     KB = [clause.strip(',') for clause in KB]
     clauses = []
@@ -23,25 +31,23 @@ def reslove_KB2set(KB: str) -> set:
         clauses.append(c)
     return clauses
 
-def is_neg(l: str) -> bool:
-    return l[0] == '~'
-
-def is_diff(l: str, r: str) -> bool:
-    return is_neg(l) ^ is_neg(r)
-
-def to_pos(l: str) -> str:
-    return l[1:] if is_neg(l) else l
-
-def to_neg(l: str) -> str:
-    return '~' + l if not is_neg(l) else l
-
 def resolve(C1: list, C2: list) -> list:
+    """Resolve two clauses C1 and C2.
+    Args:
+        C1: list of str
+        C2: list of str
+    Returns:
+        tuple, (int, int, dict, list)
+        or None if cannot resolve
+    """
     for k1, l in enumerate(C1):
         for k2, r in enumerate(C2):
             if is_diff(l, r):
-                sigma, term = MGU(to_pos(l), to_pos(r))
-                if sigma is None:
+                mgu_result = MGU(to_pos(l), to_pos(r))
+                if mgu_result is None:
                     continue
+                sigma, term = mgu_result
+
                 add_neg = lambda x: '~' if is_neg(x) else ''
                 apply_sigma = lambda x: add_neg(x) + apply_subst(parse_term(to_pos(x)), sigma).__repr__()
                 C1 = [apply_sigma(c) for c in C1]
@@ -59,9 +65,15 @@ def resolve(C1: list, C2: list) -> list:
     return None
 
 def ResolutionProp(KB: str):
+    """Resolution for propositional logic.
+    Args:
+        KB: str, knowledge base
+    Returns:
+        list of dict, steps of resolution
+    """
     clauses = reslove_KB2set(KB)
     steps = [{'clauses': None, 'sigma': None, 'resolvent': clause} for k, clause in enumerate(clauses)]
-    S = set(tuple(clause) for clause in clauses)
+    # S = set(tuple(clause) for clause in clauses)
     while True:
         new_steps = []
         for i in range(len(steps)):
@@ -115,10 +127,10 @@ if __name__ == "__main__":
         if step['clauses']:
             out_str += ' R[' + ','.join(step['clauses']) + ']'
         if step['sigma']:
-            out_str += '{{'
+            out_str += '{'
             for key, val in step['sigma'].items():
                 out_str += key + '=' + str(val)
-            out_str += '}}'
+            out_str += '}'
         out_str += ' = (' + ','.join(step['resolvent']) + ')'
         print(out_str)
 
