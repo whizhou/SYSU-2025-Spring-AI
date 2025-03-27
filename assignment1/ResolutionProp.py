@@ -135,13 +135,16 @@ def ResolutionProp(KB: str):
 
 if __name__ == "__main__":
     KB = [
-        '{(firstgrade,),(~firstgrade,child),(~child,)}',
+        '{(Firstgrade,),(~Firstgrade,Child),(~Child,)}',
+
         '{(GradStudent(sue),),(~GradStudent(x),Student(x)),'
-        '(~Student(x),~HardWorker(x)),(HardWorker(sue),)}',
+        '(~Student(x),HardWorker(x)),(~HardWorker(sue),)}',
+
         '{(A(tony),),(A(mike),),(A(john),),(L(tony,rain),),'
         '(L(tony,snow),),(~A(x),S(x),C(x)),(~C(y),~L(y,rain)),'
         '(L(z,snow),~S(z)),(~L(tony,u),~L(mike,u)),'
         '(L(tony,v),L(mike,v)),(~A(w),~C(w),S(w))}',
+
         '{(On(tony,mike),),(On(mike,john),),(Green(tony),),(~Green(john),),'
         '(~On(xx,yy),~Green(xx),Green(yy))}'
     ]
@@ -152,7 +155,7 @@ if __name__ == "__main__":
         for k, step in enumerate(steps):
             out_str = str(k+1)
             if step['parents']:
-                out_str += ' ({})'.format(','.join(
+                out_str += ' R[{}]'.format(','.join(
                     [str(step['parents'][k]+1) + step['clauses'][k]
                      for k in range(2)]))
             if step['sigma']:
