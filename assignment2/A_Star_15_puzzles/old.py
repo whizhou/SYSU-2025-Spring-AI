@@ -1,14 +1,14 @@
 import numpy as np
 import time
 from pathlib import Path
-import heapq
+from queue import PriorityQueue
 
 class Node:
-    target = tuple([
-        (1, 2, 3, 4),
-        (5, 6, 7, 8),
-        (9, 10, 11, 12),
-        (13, 14, 15, 0)
+    target = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12],
+        [13, 14, 15, 0]
     ])
 
     directions = [
@@ -21,17 +21,18 @@ class Node:
     def __init__(self,
             state: list,
             parent: 'Node' = None,
-            gs: int = -1,
+            gs: int = int(1e8),
             direction: int = -1):
-        self.state = tuple(tuple(row) for row in state)
+        self.state = np.array(state)
         self.parent = parent
         self.gs = gs
         self.direction = direction
         self.hs = self.hScore()
         self.fs = self.gs + self.hs
-        self._hash = hash(self.state)
+        self._hash = hash(self.state.tobytes())
 
     def hScore(self) -> int:
+        # return np.sum(self.state != self.target)
         distance = 0
         for i in range(4):
             for j in range(4):
@@ -43,34 +44,41 @@ class Node:
                 distance += abs(i - target_x) + abs(j - target_y)
         return distance
 
+    # def fScore(self) -> int:
+    #     return self.gs + self.hs
+    
+    # def gScore(self) -> int:
+    #     return self.gs
+    
     def neighbors(self):
         """
         Generate all possible states by moving the blank space
         Returns:
             
         """
-        x, y = next((i, j) for i in range(4) for j in range(4) if self.state[i][j] == 0)
+        x, y = np.where(self.state == 0)
+        x, y = x[0], y[0]
         for dir, (dx, dy) in enumerate(self.directions):
             nx, ny = x + dx, y + dy
             if 0 <= nx < 4 and 0 <= ny < 4:
-                new_state = [list(row) for row in self.state]
-                new_state[x][y], new_state[nx][ny] = new_state[nx][ny], new_state[x][y]
+                new_state = self.state.copy()
+                new_state[x, y], new_state[nx, ny] = new_state[nx, ny], new_state[x, y]
                 yield Node(new_state, self, self.gs + 1, dir)
 
     def __lt__(self, other: 'Node') -> bool:
         return self.fs < other.fs
     
     def __repr__(self) -> str:
-        return "\n".join([" ".join(map(str, row)) for row in self.state])
-
+        return str(self.state)
+    
     def __eq__(self, other: 'Node') -> bool:
-        return self.state == other.state
+        return np.array_equal(self.state, other.state)
 
     def __hash__(self) -> int:
         return self._hash
     
 
-def a_star(start_state: list) -> list:
+def a_star(start: list) -> list:
     """
     Implements the A* algorithm to find the shortest path to the target state.
     Args:
@@ -78,54 +86,37 @@ def a_star(start_state: list) -> list:
     Returns:
         list: The sequence of states leading to the solution.
     """
-    start_node = Node(start_state)
-    open_set = []
-    heapq.heappush(open_set, start_node)
-    gScore = {start_node: 0}
+    open_set = PriorityQueue()
+    start = Node(start, None, 0)
+    open_set.put(start)
     close_set = set()
-
-    while open_set:
-        cur = heapq.heappop(open_set)
+    gScore = {start: 0}
+    came_from = {}
+    while not open_set.empty():
+        cur = open_set.get()
+        # if cur.gs > gScore[cur]:
+            # continue
+        if cur in close_set:
+            continue
         close_set.add(cur)
-        if cur.state == Node.target:
-            return reconstruct_path(cur), len(close_set)
+        if np.array_equal(cur.state, Node.target):
+            return reconstruct_path(came_from, cur)
         for neighbor in cur.neighbors():
-            if neighbor in close_set:
-                continue
             if neighbor not in gScore or neighbor.gs < gScore[neighbor]:
+                came_from[neighbor] = cur
                 gScore[neighbor] = neighbor.gs
-                heapq.heappush(open_set, neighbor)
-    return None
+                # if neighbor in open_set.queue:
+                    # open_set.queue.remove(neighbor)
+                open_set.put(neighbor)
+    return []
 
-def reconstruct_path(cur):
-    total_path = []
-    while cur is not None:
-        total_path.append(cur)
-        cur = cur.parent
+def reconstruct_path(came_from, current):
+    total_path = [current]
+    while current in came_from:
+        current = came_from[current]
+        total_path.append(current)
     return total_path[::-1]
 
-
-def run(test_id: int):
-    print(f"Running test {test_id}...")
-    start_time = time.time()
-    path, visited_nodes = a_star(start_state[test_id])
-    end_time = time.time()
-
-    save_path = Path(__file__).resolve().parent
-    with open(save_path.joinpath(f'output_{test_id}.txt'), "w") as f:
-        dir = ["Right", "Down", "Left", "Up", "Start"]
-        f.write(f"Time taken: {end_time - start_time:.2f} seconds\n")
-        f.write(f"Visited nodes: {visited_nodes}\n\n")
-        for i, node in enumerate(path):
-            f.write(f"Step {i}, {dir[node.direction]}:\n")
-            f.write(repr(node))
-            f.write("\n\n")
-
-    print(f"\nTest {test_id} completed.")
-    print(f"Number of steps: {len(path) - 1}")
-    print(f"Visited nodes: {visited_nodes}")
-    print(f"Time taken: {end_time - start_time:.2f} seconds")
-    print("Output saved to:", save_path.joinpath(f'output_{test_id}.txt'))
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -139,9 +130,24 @@ if __name__ == "__main__":
         [[0, 5, 15, 14], [7, 9, 6, 13], [1, 2, 12, 10], [8, 11, 4, 3]]
     ]
 
-    # for test_id in range(4, 6):
-        # run(test_id)
-    run(5)
+    test_id = 0
+    path = a_star(start_state[test_id])
 
+    # for i, state in enumerate(path):
+    #     print(f"Step {i}:")
+    #     print(state)
+    #     print()
+    
     end_time = time.time()
-    print(f"Total time: {end_time - start_time:.2f} seconds")
+    # save to file
+    save_path = Path(__file__).resolve().parent
+    with open(save_path.joinpath(f'output_{test_id}.txt'), "w") as f:
+        dir = ["Right", "Down", "Left", "Up", "Start"]
+        f.write(f"Time taken: {end_time - start_time:.2f} seconds\n\n")
+        for i, node in enumerate(path):
+            f.write(f"Step {i}, {dir[node.direction]}:\n")
+            f.write(repr(node))
+            f.write("\n\n")
+
+    print(f"Time taken: {end_time - start_time:.2f} seconds")
+    print("Output saved to:", save_path.joinpath(f'output_{test_id}.txt'))

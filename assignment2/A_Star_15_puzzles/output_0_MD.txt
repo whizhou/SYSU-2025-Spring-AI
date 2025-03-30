@@ -1,5 +1,5 @@
 Time taken: 0.00 seconds
-Visited nodes: 192
+Visited nodes: 200
 
 Step 0, Start:
 1 2 4 8
