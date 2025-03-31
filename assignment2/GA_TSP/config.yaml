@@ -1,0 +1,20 @@
+task_id: 0
+data_dir: data  # relative path to the data directory
+tsp_instances:
+  - wi29
+  - qa194
+  - uy734
+  - mu1979
+  - ja9847
+
+seed: 13
+population_size: 100
+generation_count: 1000
+tournament_size: 5
+elite_size: 4
+crossover_rate: 0.9
+mutation_rate: 0.1
+selection_method: tournament
+crossover_method: order
+mutation_method: swap
+fitness_function: total_distance
