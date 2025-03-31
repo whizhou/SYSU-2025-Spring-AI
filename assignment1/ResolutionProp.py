@@ -51,8 +51,6 @@ def resolve(C1: list, C2: list) -> list:
                 def apply_sigma(lit: str) -> str:
                     sign = '~' if is_neg(lit) else ''
                     return sign + repr(apply_subst(parse_term(to_pos(lit)), sigma))
-                # add_neg = lambda x: '~' if is_neg(x) else ''
-                # apply_sigma = lambda x: add_neg(x) + apply_subst(parse_term(to_pos(x)), sigma).__repr__()
                 C1 = [apply_sigma(lit) for lit in C1]
                 C2 = [apply_sigma(lit) for lit in C2]
                 if term in C1 and to_neg(term) in C2:
@@ -148,10 +146,14 @@ if __name__ == "__main__":
         '{(On(tony,mike),),(On(mike,john),),(Green(tony),),(~Green(john),),'
         '(~On(xx,yy),~Green(xx),Green(yy))}'
     ]
-    steps = ResolutionProp(KB[3])
+    input_str = KB[3]
+    print('Input:')
+    print(input_str)
+    steps = ResolutionProp(input_str)
     if steps is None:
         print('No proof found.')
     else:
+        print('Proof found, Resolution steps:')
         for k, step in enumerate(steps):
             out_str = str(k+1)
             if step['parents']:
@@ -162,6 +164,8 @@ if __name__ == "__main__":
                 sigma_str = ''.join(
                     f"{key}={val}" for key, val in step['sigma'].items())
                 out_str += '{' + sigma_str + '}'
-            out_str += ' = (' + ','.join(step['resolvent']) + ')'
+            if step['parents']:
+                out_str += ' ='
+            out_str += ' (' + ','.join(step['resolvent']) + ')'
             print(out_str)
 

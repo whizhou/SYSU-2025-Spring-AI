@@ -94,7 +94,7 @@ def MGU(str1, str2):
 if __name__ == '__main__':
     input1 = ['P(xx,a)', 'P(a,xx,f(g(yy)))', 'P(a,x,h(g(z)))']
     input2 = ['P(b,yy)', 'P(zz,f(zz),f(uu))', 'P(z,h(y),h(y))']
-    test_id = 1
+    test_id = 2
     mgu_result = MGU(input1[test_id], input2[test_id])
     if mgu_result is None:
         print("Failed to unify.")
