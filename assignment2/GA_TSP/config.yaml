@@ -8,17 +8,22 @@ tsp_instances:
   - ja9847
 
 default:
-  seed: 47
+  seed: 73
   population_size: 200
   generation_count: 2000
   tournament_size: 5
-  elite_size: 10
+  elite_size: 4
   crossover_rate: 0.9
-  mutation_rate: 0.5
-  selection_method: tournament  # tournament or roulette
+  mutation_rate: 0.99
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
   crossover_method: order
   mutation_method: invert  # swap, invert
   fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 20
+    min_size: 5
+    
+
 
 wi29_best:
   seed: 37

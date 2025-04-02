@@ -110,20 +110,23 @@ def calculate_distance(path, distance_matrix):
     total_distance += distance_matrix[path[-1], path[0]]
     return total_distance
 
-def selection(distance_matrix, population, method='tournament', tournament_size=5):
+def selection(distance_matrix, population, cfg):
     """
     Selects a parent from the population using the specified method.
 
     Args:
         distance_matrix (np.ndarray): The distance matrix of the cities.
         population (list): The current population of paths.
-        method (str): The selection method ('tournament', 'roulette').
-        tournament_size (int): The size of the tournament for selection.
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+            method (str): The selection method ('tournament', 'roulette').
+            tournament_size (int): The size of the tournament for selection.
 
     Returns:
         list: The selected parent path.
     """
+    method = cfg['selection_method']
     if method == 'tournament':
+        tournament_size = cfg['tournament_size']
         tournament = random.sample(population, tournament_size)
         best_path = min(tournament, key=lambda path: calculate_distance(path, distance_matrix))
         return best_path
@@ -134,7 +137,13 @@ def selection(distance_matrix, population, method='tournament', tournament_size=
         selected_idx = np.random.choice(np.arange(len(population)), p=probabilities)
         return population[selected_idx]
     elif method == 'adaptive_tournament':
-        pass
+        adapt_cfg = cfg['adaptive_tournament']
+        max_size = adapt_cfg['max_size']
+        min_size = adapt_cfg['min_size']
+        tournament_size = max(min_size, int(max_size * (1 - cfg['generation'] / cfg['generation_count'])))
+        tournament = random.sample(population, tournament_size)
+        best_path = min(tournament, key=lambda path: calculate_distance(path, distance_matrix))
+        return best_path
     else:
         raise ValueError("Invalid selection method. Use 'tournament' or 'roulette'.")
 
@@ -201,38 +210,32 @@ def mutate(path, method='swap'):
     
     return path
 
-def genetic_tsp(
-    distance_matrix,
-    n,
-    population_size=100,
-    generation_count=1000,
-    tournament_size=5,
-    elite_size=5,
-    crossover_rate=0.9,
-    mutation_rate=0.01,
-    selection_method='tournament',
-    crossover_method='order',
-    mutation_method='swap'
-):
+def genetic_tsp(distance_matrix, n, cfg):
     """
     Genetic TSP algorithm.
 
     Args:
         distance_matrix (np.ndarray): The distance matrix of the cities.
         n (int): The number of cities.
-        population_size (int): The size of the population.
-        generation_count (int): The number of generations to run.
-        tournament_size (int): The size of the tournament for selection, None for no tournament.
-        elite_size (int): The number of elite individuals to keep.
-        crossover_rate (float): The probability of crossover.
-        mutation_rate (float): The probability of mutation.
-        selection_method (str): The method for selection ('tournament', 'roulette').
-        crossover_method (str): The method for crossover ('order', 'pmx').
-        mutation_method (str): The method for mutation ('swap', 'invert').
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+            population_size (int): The size of the population.
+            generation_count (int): The number of generations to run.
+            tournament_size (int): The size of the tournament for selection, None for no tournament.
+            elite_size (int): The number of elite individuals to keep.
+            crossover_rate (float): The probability of crossover.
+            mutation_rate (float): The probability of mutation.
+            selection_method (str): The method for selection ('tournament', 'roulette').
+            crossover_method (str): The method for crossover ('order', 'pmx').
+            mutation_method (str): The method for mutation ('swap', 'invert').
 
     Returns:
         list: A list representing the best path found.
     """
+    generation_count = cfg['generation_count']
+    population_size = cfg['population_size']
+    elite_size = cfg['elite_size']
+    crossover_rate = cfg['crossover_rate']
+    mutation_rate = cfg['mutation_rate']
     # Check configurations
     assert (generation_count - elite_size) % 2 == 0, "The number of generations must be even after removing elite individuals."
 
@@ -258,26 +261,33 @@ def genetic_tsp(
 
     # Main loop
     for generation in range(generation_count):
+        cfg['generation'] = generation
         new_population = []
         sorted_population = sorted(population, key=lambda path: calculate_distance(path, distance_matrix))
 
         # Elitism
         new_population.extend(sorted_population[:elite_size])
 
+        # Adaptive Mutation
+        mutation_rate = cfg['mutation_rate'] * (1 - generation / generation_count)
+        mutation_rate = max(mutation_rate, 0.2)
+        # if generation % 50 == 0:
+            # mutation_rate = cfg['mutation_rate'] * (1 - generation / generation_count)
+
         # Crossover and mutation
         while len(new_population) < population_size:
-            parent1 = selection(distance_matrix, population, selection_method, tournament_size)
-            parent2 = selection(distance_matrix, population, selection_method, tournament_size)
+            parent1 = selection(distance_matrix, population, cfg)
+            parent2 = selection(distance_matrix, population, cfg)
 
             if np.random.rand() < crossover_rate:
-                child1, child2 = crossover(parent1, parent2, crossover_method)
+                child1, child2 = crossover(parent1, parent2, cfg['crossover_method'])
             else:
                 child1, child2 = parent1[:], parent2[:]
 
             if np.random.rand() < mutation_rate:
-                mutate(child1, mutation_method)
+                mutate(child1, cfg['mutation_method'])
             if np.random.rand() < mutation_rate:
-                mutate(child2, mutation_method)
+                mutate(child2, cfg['mutation_method'])
 
             new_population.append(child1)
             new_population.append(child2)
@@ -323,24 +333,13 @@ def main():
     tsp_instance = tsp_list[task_id]
 
     if args.best:
-        tsp_config = config.get(f'{tsp_instance}_best', config['default'])
+        cfg = config.get(f'{tsp_instance}_best', config['default'])
     else:
-        tsp_config = config.get(tsp_instance, config['default'])
-    
-    seed = tsp_config.get('seed', 42)
-    population_size = tsp_config.get('population_size', 100)
-    generation_count = tsp_config.get('generation_count', 1000)
-    tournament_size = tsp_config.get('tournament_size', 5)
-    elite_size = tsp_config.get('elite_size', 5)
-    crossover_rate = tsp_config.get('crossover_rate', 0.9)
-    mutation_rate = tsp_config.get('mutation_rate', 0.01)
-    selection_method = tsp_config.get('selection_method', 'tournament')
-    crossover_method = tsp_config.get('crossover_method', 'order')
-    mutation_method = tsp_config.get('mutation_method', 'swap')
+        cfg = config.get(tsp_instance, config['default'])
 
     # Set the random seed for reproducibility
-    random.seed(seed)
-    np.random.seed(seed + 1)
+    random.seed(cfg['seed'])
+    np.random.seed(cfg['seed'] + 1)
 
     # Define the path to the TSP file
     tsp_file_path = ROOT_DIR / data_dir / f'{tsp_instance}.tsp'
@@ -355,16 +354,16 @@ def main():
     print(f"Number of Cities: {tsp_data['DIMENSION']}")
     print(f"Edge Weight Type: {tsp_data['EDGE_WEIGHT_TYPE']}")
     print("\nConfiguration:")
-    print(f"Seed: {seed}")
-    print(f"Population Size: {population_size}")
-    print(f"Generation Count: {generation_count}")
-    print(f"Tournament Size: {tournament_size}")
-    print(f"Elite Size: {elite_size}")
-    print(f"Crossover Rate: {crossover_rate}")
-    print(f"Mutation Rate: {mutation_rate}")
-    print(f"Selection Method: {selection_method}")
-    print(f"Crossover Method: {crossover_method}")
-    print(f"Mutation Method: {mutation_method}")
+    print(f"Seed: {cfg['seed']}")
+    print(f"Population Size: {cfg['population_size']}")
+    print(f"Generation Count: {cfg['generation_count']}")
+    print(f"Tournament Size: {cfg['tournament_size']}")
+    print(f"Elite Size: {cfg['elite_size']}")
+    print(f"Crossover Rate: {cfg['crossover_rate']}")
+    print(f"Mutation Rate: {cfg['mutation_rate']}")
+    print(f"Selection Method: {cfg['selection_method']}")
+    print(f"Crossover Method: {cfg['crossover_method']}")
+    print(f"Mutation Method: {cfg['mutation_method']}")
 
 
     # Extract coordinates
@@ -373,27 +372,7 @@ def main():
     # Compute the distance matrix
     distance_matrix = compute_distance_matrix(coords)
 
-    cfg = {
-        'population_size': population_size,
-        'generation_count': generation_count,
-        'tournament_size': tournament_size,
-        'elite_size': elite_size,
-        'crossover_rate': crossover_rate,
-        'mutation_rate': mutation_rate,
-        'selection_method': selection_method,
-        'crossover_method': crossover_method,
-        'mutation_method': mutation_method,
-        
-    }
-
-    path, distance, logs = genetic_tsp(
-        distance_matrix, tsp_data['DIMENSION'],
-        population_size, generation_count,
-        tournament_size, elite_size,
-        crossover_rate, mutation_rate,
-        selection_method, crossover_method,
-        mutation_method
-    )
+    path, distance, logs = genetic_tsp(distance_matrix, tsp_data['DIMENSION'], cfg)
 
     end_time = time.time()
     exec_time = end_time - start_time
@@ -406,18 +385,7 @@ def main():
     # Save the results to a json file
     result = {
         'Task': tsp_data['NAME'],
-        'Configuration': {
-            'seed': seed,
-            'Population_size': population_size,
-            'Generation_count': generation_count,
-            'Tournament_size': tournament_size,
-            'Elite_size': elite_size,
-            'Crossover_rate': crossover_rate,
-            'Mutation_rate': mutation_rate,
-            'Selection_method': selection_method,
-            'Crossover_method': crossover_method,
-            'Mutation_method': mutation_method
-        },
+        'Configuration': cfg,
         'Execution_time': exec_time,
         'Best_distance': distance,
         'Best_path': path,
@@ -428,7 +396,7 @@ def main():
 
     result_path = ROOT_DIR / 'output'
     result_path.mkdir(parents=True, exist_ok=True)
-    result_name = f'{tsp_instance}_{seed}_{population_size}_{tournament_size}_{elite_size}_{crossover_rate}_{mutation_rate}_{mutation_method}'
+    result_name = f'{tsp_instance}_{cfg["seed"]}_{cfg["population_size"]}_{cfg["tournament_size"]}_{cfg["elite_size"]}_{cfg["crossover_rate"]}_{cfg["mutation_rate"]}_{cfg["mutation_method"]}'
     if args.best:
         result_name = f'{tsp_instance}_best'
     
