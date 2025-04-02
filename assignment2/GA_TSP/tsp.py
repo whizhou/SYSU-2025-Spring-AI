@@ -185,7 +185,31 @@ def crossover(parent1, parent2, method='order'):
         pass
     else:
         raise ValueError("Invalid crossover method. Use 'order' or 'pmx'.")
-    
+
+def get_mutate(mutation_rate, logs, cfg):
+    """
+    Gets the mutation rate based on the current generation and logs.
+    Args:
+        generation (int): The current generation number.
+        logs (list): The logs of the generations.
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+    """
+    if cfg['mutation_rate_method'] == 'adaptive':
+        adapt_cfg = cfg['adaptive_mutation']
+        if len(logs) < 5: 
+            return mutation_rate
+        improvement = logs[-5]['cur_best_distance'] - logs[-1]['cur_best_distance']
+        improvement_rate = improvement / logs[-5]['cur_best_distance']
+        if improvement_rate > adapt_cfg['decay_threshold']:
+            mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.01)
+        elif improvement_rate < adapt_cfg['increase_threshold']:
+            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.5)
+        return mutation_rate
+    elif cfg['mutation_rate_method'] == 'fixed':
+        return mutation_rate
+    else:
+        raise ValueError("Invalid mutation rate method.")
+
 def mutate(path, method='swap'):
     """
     Mutates a path using the specified method.
@@ -254,7 +278,8 @@ def genetic_tsp(distance_matrix, n, cfg):
         # 'cur_best_path': best_path,
         'cur_best_distance': best_distance,
         # 'best_path': best_path,
-        'best_distance': best_distance
+        'best_distance': best_distance,
+        'mutation_rate': mutation_rate,
     }]
     if args.debug:
         print(f"Initial best path: {best_path}, distance: {best_distance}")
@@ -268,11 +293,8 @@ def genetic_tsp(distance_matrix, n, cfg):
         # Elitism
         new_population.extend(sorted_population[:elite_size])
 
-        # Adaptive Mutation
-        mutation_rate = cfg['mutation_rate'] * (1 - generation / generation_count)
-        mutation_rate = max(mutation_rate, 0.2)
-        # if generation % 50 == 0:
-            # mutation_rate = cfg['mutation_rate'] * (1 - generation / generation_count)
+        # Mutation rate
+        mutation_rate = get_mutate(mutation_rate, logs, cfg)
 
         # Crossover and mutation
         while len(new_population) < population_size:
@@ -306,7 +328,8 @@ def genetic_tsp(distance_matrix, n, cfg):
             # 'cur_best_path': cur_best_path,
             'cur_best_distance': cur_best_distance,
             # 'best_path': best_path,
-            'best_distance': best_distance
+            'best_distance': best_distance,
+            'mutation_rate': mutation_rate
         })
         if args.debug and generation % 50 == 0:
             print(f"Generation {generation + 1}: Best distance: {best_distance}")
@@ -361,6 +384,7 @@ def main():
     print(f"Elite Size: {cfg['elite_size']}")
     print(f"Crossover Rate: {cfg['crossover_rate']}")
     print(f"Mutation Rate: {cfg['mutation_rate']}")
+    print(f"Mutation Rate Method: {cfg['mutation_rate_method']}")
     print(f"Selection Method: {cfg['selection_method']}")
     print(f"Crossover Method: {cfg['crossover_method']}")
     print(f"Mutation Method: {cfg['mutation_method']}")
@@ -408,6 +432,7 @@ def main():
 
     # Plot the path
     plot_path(coords, path, tsp_instance, distance, result_path / f'{result_name}.png')
+    plot_distances(logs, result_path / f'plot_{result_name}.png')
 
 def plot_path(coords, path, tsp_instance, distance, output_file):
     """
@@ -433,6 +458,30 @@ def plot_path(coords, path, tsp_instance, distance, output_file):
     plt.show()
     plt.close()
     print(f"Path plot saved to {output_file}")
+
+def plot_distances(logs, output_file):
+    """
+    Plots the distances over generations.
+
+    Args:
+        logs (list): The logs of the generations.
+        output_file (str): The path to save the plot.
+    """
+    import matplotlib.pyplot as plt
+
+    generations = [log['generation'] for log in logs]
+    distances = [log['mutation_rate'] for log in logs]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(generations, distances)
+    plt.title('Distance over Generations')
+    plt.xlabel('Generation')
+    plt.ylabel('Distance')
+    plt.grid()
+    plt.savefig(output_file)
+    plt.show()
+    plt.close()
+    print(f"Distance plot saved to {output_file}")
 
 if __name__ == "__main__":
     main()

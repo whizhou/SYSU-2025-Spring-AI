@@ -9,12 +9,18 @@ tsp_instances:
 
 default:
   seed: 73
-  population_size: 200
+  population_size: 100
   generation_count: 2000
   tournament_size: 5
   elite_size: 4
   crossover_rate: 0.9
-  mutation_rate: 0.99
+  mutation_rate: 0.3
+  mutation_rate_method: adaptive  # adaptive or fixed
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.01
+    increase_threshold: 0.05
   selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
   crossover_method: order
   mutation_method: invert  # swap, invert
@@ -22,6 +28,7 @@ default:
   adaptive_tournament:
     max_size: 20
     min_size: 5
+
     
 
 
@@ -33,6 +40,12 @@ wi29_best:
   elite_size: 10
   crossover_rate: 0.9
   mutation_rate: 0.01
+  mutation_rate_method: fixed  # adaptive or fixed
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.01
+    increase_threshold: 0.05
   selection_method: tournament  # tournament or roulette
   crossover_method: order
   mutation_method: invert  # swap, invert
