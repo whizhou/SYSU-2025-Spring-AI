@@ -1,4 +1,4 @@
-task_id: 0
+task_id: 1
 data_dir: data  # relative path to the data directory
 tsp_instances:
   - wi29
@@ -7,14 +7,28 @@ tsp_instances:
   - mu1979
   - ja9847
 
-seed: 13
-population_size: 100
-generation_count: 1000
-tournament_size: 5
-elite_size: 4
-crossover_rate: 0.9
-mutation_rate: 0.1
-selection_method: tournament
-crossover_method: order
-mutation_method: swap
-fitness_function: total_distance
+default:
+  seed: 47
+  population_size: 200
+  generation_count: 2000
+  tournament_size: 5
+  elite_size: 10
+  crossover_rate: 0.9
+  mutation_rate: 0.5
+  selection_method: tournament  # tournament or roulette
+  crossover_method: order
+  mutation_method: invert  # swap, invert
+  fitness_function: total_distance
+
+wi29_best:
+  seed: 37
+  population_size: 200
+  generation_count: 1000
+  tournament_size: 5
+  elite_size: 10
+  crossover_rate: 0.9
+  mutation_rate: 0.01
+  selection_method: tournament  # tournament or roulette
+  crossover_method: order
+  mutation_method: invert  # swap, invert
+  fitness_function: total_distance

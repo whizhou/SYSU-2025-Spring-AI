@@ -1,5 +1,6 @@
 import time
 import yaml
+import json
 import random
 from argparse import ArgumentParser
 import numpy as np
@@ -7,6 +8,8 @@ from pathlib import Path
 
 parser = ArgumentParser(description="Genetic Algorithm for TSP")
 parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+parser.add_argument('--best', action='store_true', help='Enable best mode')
+parser.add_argument('--log', action='store_true', help='Enable log mode')
 args = parser.parse_args()
 
 def read_tsp_data(filename):
@@ -101,7 +104,7 @@ def calculate_distance(path, distance_matrix):
     Returns:
         float: The total distance of the path.
     """
-    total_distance = 0
+    total_distance = 0.0
     for i in range(len(path) - 1):
         total_distance += distance_matrix[path[i], path[i + 1]]
     total_distance += distance_matrix[path[-1], path[0]]
@@ -128,7 +131,10 @@ def selection(distance_matrix, population, method='tournament', tournament_size=
         fitness = [1 / calculate_distance(path, distance_matrix) for path in population]
         total_fitness = np.sum(fitness)
         probabilities = [f / total_fitness for f in fitness]
-        return np.random.choice(population, p=probabilities)
+        selected_idx = np.random.choice(np.arange(len(population)), p=probabilities)
+        return population[selected_idx]
+    elif method == 'adaptive_tournament':
+        pass
     else:
         raise ValueError("Invalid selection method. Use 'tournament' or 'roulette'.")
 
@@ -182,14 +188,14 @@ def mutate(path, method='swap'):
     Returns:
         list: The mutated path.
     """
+    size = len(path)
     if method == 'swap':
-        idx1, idx2 = np.random.choice(len(path), 2, replace=False)
+        idx1, idx2 = np.random.choice(size, 2, replace=False)
         path[idx1], path[idx2] = path[idx2], path[idx1]
     elif method == 'invert':
-        start, end = np.random.choice(len(path), 2, replace=False)
-        if start > end:
-            start, end = end, start
-        path[start:end + 1] = reversed(path[start:end + 1])
+        start = np.random.randint(0, size)
+        end = np.random.randint(start + 1, size + 1)
+        path[start:end] = reversed(path[start:end])
     else:
         raise ValueError("Invalid mutation method. Use 'swap' or 'invert'.")
     
@@ -231,9 +237,9 @@ def genetic_tsp(
     assert (generation_count - elite_size) % 2 == 0, "The number of generations must be even after removing elite individuals."
 
     # Initialize the population
-    population = [list(range(n))] * population_size
+    population = []
     for i in range(population_size):
-        np.random.shuffle(population[i])
+        population.append(random.sample(range(n), n))
     # if args.debug:
         # print(f"Initial population: {population}")
     
@@ -242,9 +248,9 @@ def genetic_tsp(
     best_distance = calculate_distance(best_path, distance_matrix)
     logs = [{
         'generation': 0,
-        'cur_best_path': best_path,
+        # 'cur_best_path': best_path,
         'cur_best_distance': best_distance,
-        'best_path': best_path,
+        # 'best_path': best_path,
         'best_distance': best_distance
     }]
     if args.debug:
@@ -282,17 +288,17 @@ def genetic_tsp(
         cur_best_path = min(population, key=lambda path: calculate_distance(path, distance_matrix))
         cur_best_distance = calculate_distance(cur_best_path, distance_matrix)
         if cur_best_distance < best_distance:
-            best_path = cur_best_path
+            best_path = cur_best_path.copy()
             best_distance = cur_best_distance
 
         logs.append({
             'generation': generation + 1,
-            'cur_best_path': cur_best_path,
+            # 'cur_best_path': cur_best_path,
             'cur_best_distance': cur_best_distance,
-            'best_path': best_path,
+            # 'best_path': best_path,
             'best_distance': best_distance
         })
-        if args.debug and generation % 100 == 0:
+        if args.debug and generation % 50 == 0:
             print(f"Generation {generation + 1}: Best distance: {best_distance}")
     
     return best_path, best_distance, logs
@@ -313,23 +319,31 @@ def main():
     tsp_list = config.get('tsp_instances')
     if not tsp_list:
         raise ValueError("No TSP instances provided in the configuration.")
-    seed = config.get('seed', 42)
-    population_size = config.get('population_size', 100)
-    generation_count = config.get('generation_count', 1000)
-    tournament_size = config.get('tournament_size', 5)
-    elite_size = config.get('elite_size', 5)
-    crossover_rate = config.get('crossover_rate', 0.9)
-    mutation_rate = config.get('mutation_rate', 0.01)
-    selection_method = config.get('selection_method', 'tournament')
-    crossover_method = config.get('crossover_method', 'order')
-    mutation_method = config.get('mutation_method', 'swap')
+    
+    tsp_instance = tsp_list[task_id]
+
+    if args.best:
+        tsp_config = config.get(f'{tsp_instance}_best', config['default'])
+    else:
+        tsp_config = config.get(tsp_instance, config['default'])
+    
+    seed = tsp_config.get('seed', 42)
+    population_size = tsp_config.get('population_size', 100)
+    generation_count = tsp_config.get('generation_count', 1000)
+    tournament_size = tsp_config.get('tournament_size', 5)
+    elite_size = tsp_config.get('elite_size', 5)
+    crossover_rate = tsp_config.get('crossover_rate', 0.9)
+    mutation_rate = tsp_config.get('mutation_rate', 0.01)
+    selection_method = tsp_config.get('selection_method', 'tournament')
+    crossover_method = tsp_config.get('crossover_method', 'order')
+    mutation_method = tsp_config.get('mutation_method', 'swap')
 
     # Set the random seed for reproducibility
-    # random.seed(seed)
-    # np.random.seed(seed+1)
+    random.seed(seed)
+    np.random.seed(seed + 1)
 
     # Define the path to the TSP file
-    tsp_file_path = ROOT_DIR / data_dir / f'{tsp_list[task_id]}.tsp'
+    tsp_file_path = ROOT_DIR / data_dir / f'{tsp_instance}.tsp'
 
     # Read the TSP data
     tsp_data = read_tsp_data(tsp_file_path)
@@ -341,6 +355,7 @@ def main():
     print(f"Number of Cities: {tsp_data['DIMENSION']}")
     print(f"Edge Weight Type: {tsp_data['EDGE_WEIGHT_TYPE']}")
     print("\nConfiguration:")
+    print(f"Seed: {seed}")
     print(f"Population Size: {population_size}")
     print(f"Generation Count: {generation_count}")
     print(f"Tournament Size: {tournament_size}")
@@ -357,6 +372,19 @@ def main():
 
     # Compute the distance matrix
     distance_matrix = compute_distance_matrix(coords)
+
+    cfg = {
+        'population_size': population_size,
+        'generation_count': generation_count,
+        'tournament_size': tournament_size,
+        'elite_size': elite_size,
+        'crossover_rate': crossover_rate,
+        'mutation_rate': mutation_rate,
+        'selection_method': selection_method,
+        'crossover_method': crossover_method,
+        'mutation_method': mutation_method,
+        
+    }
 
     path, distance, logs = genetic_tsp(
         distance_matrix, tsp_data['DIMENSION'],
@@ -375,10 +403,11 @@ def main():
     print(f"Execution time: {exec_time:.2f} seconds")
     print(f"Best distance: {distance}")
 
-    # Save the results to a YAML file
+    # Save the results to a json file
     result = {
-        # 'Task': tsp_data['NAME'],
+        'Task': tsp_data['NAME'],
         'Configuration': {
+            'seed': seed,
             'Population_size': population_size,
             'Generation_count': generation_count,
             'Tournament_size': tournament_size,
@@ -389,16 +418,53 @@ def main():
             'Crossover_method': crossover_method,
             'Mutation_method': mutation_method
         },
-        # 'Execution_time': exec_time,
-        # 'Best_distance': distance,
-        # 'Best_path': path,
+        'Execution_time': exec_time,
+        'Best_distance': distance,
+        'Best_path': path,
     }
-    # if args.debug:
-        # result['Logs'] = logs
+    if args.debug:
+        result['Logs'] = logs
 
-    result_file = ROOT_DIR / 'output' / f'{tsp_list[task_id]}_{population_size}_{tournament_size}_{elite_size}.yaml'
-    with open(result_file, 'w') as file:
-        yaml.dump(result, file, default_flow_style=False)
+
+    result_path = ROOT_DIR / 'output'
+    result_path.mkdir(parents=True, exist_ok=True)
+    result_name = f'{tsp_instance}_{seed}_{population_size}_{tournament_size}_{elite_size}_{crossover_rate}_{mutation_rate}_{mutation_method}'
+    if args.best:
+        result_name = f'{tsp_instance}_best'
+    
+    if args.log:
+        result_file = result_path / f'{result_name}.json'
+        with open(result_file, 'w') as file:        
+            json.dump(result, file, indent=4)
+        print(f"Results saved to {result_file}")
+
+    # Plot the path
+    plot_path(coords, path, tsp_instance, distance, result_path / f'{result_name}.png')
+
+def plot_path(coords, path, tsp_instance, distance, output_file):
+    """
+    Plots the path on a 2D graph.
+
+    Args:
+        coords (np.ndarray): The coordinates of the cities.
+        path (list): The order of cities in the path.
+        tsp_instance (str): The name of the TSP instance.
+        distance (float): The total distance of the path.
+        output_file (str): The path to save the plot.
+    """
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(coords[path, 0], coords[path, 1], 'o-')
+    plt.plot([coords[path[-1], 0], coords[path[0], 0]], [coords[path[-1], 1], coords[path[0], 1]], 'o-')
+    plt.title('TSP Instance: {}, Distance: {:.0f}'.format(tsp_instance, distance))
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.grid()
+    plt.savefig(output_file)
+    plt.show()
+    plt.close()
+    print(f"Path plot saved to {output_file}")
 
 if __name__ == "__main__":
     main()
