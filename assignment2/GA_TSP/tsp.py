@@ -181,12 +181,10 @@ def crossover(parent1, parent2, method='order'):
         child2 = fill_child(child2, parent1)
 
         return child1, child2
-    elif method == 'pmx':
-        pass
     else:
         raise ValueError("Invalid crossover method. Use 'order' or 'pmx'.")
 
-def get_mutate(mutation_rate, logs, cfg):
+def get_mutate(mutation_rate, generation, logs, cfg):
     """
     Gets the mutation rate based on the current generation and logs.
     Args:
@@ -196,17 +194,22 @@ def get_mutate(mutation_rate, logs, cfg):
     """
     if cfg['mutation_rate_method'] == 'adaptive':
         adapt_cfg = cfg['adaptive_mutation']
-        if len(logs) < 5: 
+        if len(logs) < 10: 
             return mutation_rate
-        improvement = logs[-5]['cur_best_distance'] - logs[-1]['cur_best_distance']
+        improvement = logs[-10]['cur_best_distance'] - logs[-1]['cur_best_distance']
         improvement_rate = improvement / logs[-5]['cur_best_distance']
         if improvement_rate > adapt_cfg['decay_threshold']:
-            mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.01)
+            mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
         elif improvement_rate < adapt_cfg['increase_threshold']:
-            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.5)
+            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
         return mutation_rate
     elif cfg['mutation_rate_method'] == 'fixed':
         return mutation_rate
+    elif cfg['mutation_rate_method'] == 'linear':
+        max_generation = cfg['generation_count']
+        if generation % 100 == 0:
+            mutation_rate = mutation_rate * (1 - generation / max_generation)
+        return max(mutation_rate, 0.01)
     else:
         raise ValueError("Invalid mutation rate method.")
 
@@ -234,11 +237,49 @@ def mutate(path, method='swap'):
     
     return path
 
-def genetic_tsp(distance_matrix, n, cfg):
+def init_population(coords, n, cfg):
+    """
+    Initializes a population of paths.
+
+    Args:
+        coords (np.ndarray): The coordinates of the cities.
+        n (int): The number of cities.
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+            init_method (str): The method for initializing the population ('random', 'greedy').
+            population_size (int): The size of the population.
+
+    Returns:
+        list: A list of paths representing the initial population.
+    """
+    population_size = cfg['population_size']
+    if cfg['init_method'] == 'random':
+        population = [random.sample(range(n), n) for _ in range(population_size)]
+    elif cfg['init_method'] == 'kmeans':
+        from sklearn.cluster import KMeans
+        kmeans_cfg = cfg['init_kmeans']
+        n_clusters = kmeans_cfg['n_clusters']
+        kmeans = KMeans(n_clusters=n_clusters, random_state=kmeans_cfg['random_state'])
+        kmeans.fit(coords)
+        labels = kmeans.labels_
+        population = []
+        for i in range(population_size):
+            route = []
+            for j in random.sample(range(n_clusters), n_clusters):
+                cluster_indices = np.where(labels == j)[0]
+                if len(cluster_indices) > 0:
+                    np.random.shuffle(cluster_indices)
+                    route.extend(cluster_indices.tolist())
+            population.append(route)
+    else:
+        raise ValueError("Invalid initialization method. Use 'random' or 'kmeans'.")
+    return population
+
+def genetic_tsp(coords, distance_matrix, n, cfg):
     """
     Genetic TSP algorithm.
 
     Args:
+        coords (np.ndarray): The coordinates of the cities.
         distance_matrix (np.ndarray): The distance matrix of the cities.
         n (int): The number of cities.
         cfg (dict): Configuration dictionary containing the parameters for the algorithm.
@@ -264,9 +305,9 @@ def genetic_tsp(distance_matrix, n, cfg):
     assert (generation_count - elite_size) % 2 == 0, "The number of generations must be even after removing elite individuals."
 
     # Initialize the population
-    population = []
-    for i in range(population_size):
-        population.append(random.sample(range(n), n))
+    population = init_population(coords, n, cfg)
+    # for i in range(population_size):
+    #     population.append(random.sample(range(n), n))
     # if args.debug:
         # print(f"Initial population: {population}")
     
@@ -294,7 +335,7 @@ def genetic_tsp(distance_matrix, n, cfg):
         new_population.extend(sorted_population[:elite_size])
 
         # Mutation rate
-        mutation_rate = get_mutate(mutation_rate, logs, cfg)
+        mutation_rate = get_mutate(mutation_rate, generation, logs, cfg)
 
         # Crossover and mutation
         while len(new_population) < population_size:
@@ -331,8 +372,8 @@ def genetic_tsp(distance_matrix, n, cfg):
             'best_distance': best_distance,
             'mutation_rate': mutation_rate
         })
-        if args.debug and generation % 50 == 0:
-            print(f"Generation {generation + 1}: Best distance: {best_distance}")
+        if args.debug and generation % 10 == 0:
+            print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}")
     
     return best_path, best_distance, logs
 
@@ -378,6 +419,7 @@ def main():
     print(f"Edge Weight Type: {tsp_data['EDGE_WEIGHT_TYPE']}")
     print("\nConfiguration:")
     print(f"Seed: {cfg['seed']}")
+    print(f"Initialization Method: {cfg['init_method']}")
     print(f"Population Size: {cfg['population_size']}")
     print(f"Generation Count: {cfg['generation_count']}")
     print(f"Tournament Size: {cfg['tournament_size']}")
@@ -396,7 +438,7 @@ def main():
     # Compute the distance matrix
     distance_matrix = compute_distance_matrix(coords)
 
-    path, distance, logs = genetic_tsp(distance_matrix, tsp_data['DIMENSION'], cfg)
+    path, distance, logs = genetic_tsp(coords, distance_matrix, tsp_data['DIMENSION'], cfg)
 
     end_time = time.time()
     exec_time = end_time - start_time
@@ -432,7 +474,9 @@ def main():
 
     # Plot the path
     plot_path(coords, path, tsp_instance, distance, result_path / f'{result_name}.png')
-    plot_distances(logs, result_path / f'plot_{result_name}.png')
+    plot_(logs, 'cur_best_distance', result_path / f'distance_{result_name}.png')
+    plot_(logs, 'mutation_rate', result_path / f'mutation_{result_name}.png')
+
 
 def plot_path(coords, path, tsp_instance, distance, output_file):
     """
@@ -448,18 +492,18 @@ def plot_path(coords, path, tsp_instance, distance, output_file):
     import matplotlib.pyplot as plt
 
     plt.figure(figsize=(10, 6))
-    plt.plot(coords[path, 0], coords[path, 1], 'o-')
+    plt.plot(coords[path, 0], coords[path, 1], 'o-', markersize=2)
     plt.plot([coords[path[-1], 0], coords[path[0], 0]], [coords[path[-1], 1], coords[path[0], 1]], 'o-')
     plt.title('TSP Instance: {}, Distance: {:.0f}'.format(tsp_instance, distance))
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
     plt.grid()
     plt.savefig(output_file)
-    plt.show()
+    # plt.show()
     plt.close()
     print(f"Path plot saved to {output_file}")
 
-def plot_distances(logs, output_file):
+def plot_(logs, name, output_file):
     """
     Plots the distances over generations.
 
@@ -470,18 +514,18 @@ def plot_distances(logs, output_file):
     import matplotlib.pyplot as plt
 
     generations = [log['generation'] for log in logs]
-    distances = [log['mutation_rate'] for log in logs]
+    distances = [log[name] for log in logs]
 
     plt.figure(figsize=(10, 6))
     plt.plot(generations, distances)
-    plt.title('Distance over Generations')
+    plt.title(f'{name} over Generations')
     plt.xlabel('Generation')
-    plt.ylabel('Distance')
+    plt.ylabel(name)
     plt.grid()
     plt.savefig(output_file)
-    plt.show()
+    # plt.show()
     plt.close()
-    print(f"Distance plot saved to {output_file}")
+    print(f"{name} plot saved to {output_file}")
 
 if __name__ == "__main__":
     main()

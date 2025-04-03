@@ -3,13 +3,18 @@ data_dir: data  # relative path to the data directory
 tsp_instances:
   - wi29
   - qa194
-  - uy734
+  - rw1621
   - mu1979
   - ja9847
 
 default:
-  seed: 73
-  population_size: 100
+  seed: 273
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 5
+    max_iter: 100
+    random_state: 42
+  population_size: 200
   generation_count: 2000
   tournament_size: 5
   elite_size: 4
@@ -19,14 +24,14 @@ default:
   adaptive_mutation:
     decay_rate: 0.99
     increase_rate: 1.01
-    decay_threshold: 0.01
-    increase_threshold: 0.05
+    decay_threshold: 0.05
+    increase_threshold: 0.01
   selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
   crossover_method: order
-  mutation_method: invert  # swap, invert
+  mutation_method: swap  # swap, invert
   fitness_function: total_distance
   adaptive_tournament:
-    max_size: 20
+    max_size: 10
     min_size: 5
 
     
@@ -34,6 +39,7 @@ default:
 
 wi29_best:
   seed: 37
+  init_method: random
   population_size: 200
   generation_count: 1000
   tournament_size: 5
