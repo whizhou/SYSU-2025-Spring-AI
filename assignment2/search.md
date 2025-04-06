@@ -90,7 +90,7 @@
       def __init__(self,
               state: list,
               parent: 'Node' = None,
-              gs: int = -1,
+              gs: int = 0,
               direction: int = -1,
               number: int = 0):
           self.state = tuple(tuple(row) for row in state)
@@ -115,15 +115,15 @@
                   distance += abs(i - target_x) + abs(j - target_y)
           # Linear Conflict Heuristic
           for i in range(4):
-              row = [self.state[i][j] for j in range(4) if self.state[i][j] != 0]
+              row = [self.state[i][j] - 1 for j in range(4) if self.state[i][j] != 0]
               for j in range(len(row) - 1):
                   for k in range(j + 1, len(row)):
-                      if (row[j] // 4 == row[k] // 4) and (row[j] % 4 > row[k] % 4):
+                      if (row[j] // 4 == i) and (row[k] // 4 == i) and (row[j] % 4 > row[k] % 4):
                           distance += 2
-              col = [self.state[j][i] for j in range(4) if self.state[j][i] != 0]
+              col = [self.state[j][i] - 1 for j in range(4) if self.state[j][i] != 0]
               for j in range(len(col) - 1):
                   for k in range(j + 1, len(col)):
-                      if (col[j] % 4 == col[k] % 4) and (col[j] // 4 > col[k] // 4):
+                      if (col[j] % 4 == i) and (col[k] % 4 == i) and (col[j] // 4 > col[k] // 4):
                           distance += 2
           return distance
   
@@ -154,13 +154,594 @@
           return self._hash
   ```
 
+  + `Node` 类中，类变量 `target` 定义了终止状态，`directions` 保存扩展方向
+  + `Node` 类的每一个实例对应一种棋盘状态，状态 `state` 用 tuple 存储，并用 `hash(state)` 作为该实例的哈希值，计算并存储在 `_hash` 中，避免每次比较时计算，提高运行效率。
+  + `__init__` 方法创建一个 `Node` 类对象并根据 state 和 g 计算出启发式函数值 h 以及估价函数值 f
+  + `hSore()` 方法定义了启发式函数的求值方法，此处为线性冲突结合曼哈顿距离的启发式函数。
+  + `neighbors` 方法向四个方向扩展状态，并创建相应的 `Node` 类对象，通过 `yield` 返回，以便于迭代并减少占用内存
+  + 实现了 `__lt__` 方法以支持优先队列；实现 `__eq__` 和 `__hash__` 方法以支持将类对象作为字典的 key，具有相同 `state` 的实例视作相同；实现 `__repr__` 方法以便于格式化输出棋盘状态。
   
++ A* 算法主体代码如下：
+  ```python
+  def a_star(start_state: list) -> list:
+      """
+      Implements the A* algorithm to find the shortest path to the target state.
+      Args:
+          start (list of list): The initial state of the puzzle.
+      Returns:
+          list: The sequence of states leading to the solution.
+      """
+      start_node = Node(start_state)
+      open_set = []
+      heapq.heappush(open_set, start_node)
+      gScore = {start_node: 0}
+      close_set = set()
+  
+      while open_set:
+          cur = heapq.heappop(open_set)
+          close_set.add(cur)
+          if cur.state == Node.target:
+              return reconstruct_path(cur), len(close_set)
+          for neighbor in cur.neighbors():
+              if neighbor in close_set:
+                  continue
+              if neighbor not in gScore or neighbor.gs < gScore[neighbor]:
+                  gScore[neighbor] = neighbor.gs
+                  heapq.heappush(open_set, neighbor)
+      return None
+  ```
+
+  + 使用 `heapq` 堆实现优先队列，相比 `PriorityQueue` 运行效率更高。
+  + 如果成功找到解，则调用 `recontruct_path()` 从终点回溯起点并返回解；否则返回 `None`
+
++ IDA* 主体代码：
+  ```python
+  def IDA_star(start_state: list, args) -> list:
+      """
+      IDA* algorithm to solve the 15-puzzle problem.
+      Args:
+          start_state (list): The initial state of the puzzle.
+      Returns:
+          list: The path from the start state to the goal state.
+      """
+      start_node = Node(start_state)
+      threshold = start_node.hs
+  
+      path = [start_node]
+      while True:
+          if args.debug:
+              print(f"Current threshold: {threshold}")
+          success, fs_min = DepthLimitedSearch(path, start_node, threshold)
+          if success:
+              return path
+          elif fs_min == float('inf'):
+              return None
+          threshold = fs_min
+  
+  def DepthLimitedSearch(path: list, node: Node, threshold: int) -> tuple:
+      """
+      Perform a depth-limited search to find the goal state.
+      Args:
+          node (Node): The current node.
+          threshold (int): The threshold for the search.
+      Returns:
+          tuple: A tuple containing the result and the minimum fs value.
+      """
+      if node.state == Node.target:
+          return True, node.gs
+  
+      if node.fs > threshold:
+          return False, node.fs
+  
+      fs_min = float('inf')
+      for neighbor in node.neighbors():
+          if neighbor in path:
+              continue
+          path.append(neighbor)
+          found, fs = DepthLimitedSearch(path, neighbor, threshold)
+          if found:
+              return True, fs
+          if fs < fs_min:
+              fs_min = fs
+          path.pop()
+  
+      return False, fs_min
+  ```
+
+  + IDA* 使用迭代加深搜索，每次深度限制搜索返回下次深度扩展的最小值，而不是每次迭代+1，避免了无用的搜索。
+  + 如果找到解，则返回解路径 `path`；否则返回 `None`。
+
+#### 遗传算法
+
++ 遗传算法主题流程如下：
+
+  1. 首先将当前种群根据适应度排序，选出精英群体；
+
+  2. 根据变异率调整策略，更新当前轮次的变异率；
+
+  3. 产生子群：
+
+     (a) 根据选择策略，从父群中选出两个个体；
+
+     (b) 根据交叉率，对个体执行交叉策略；
+
+     (c) 根据变异率，对个体执行变异策略；
+
+     (d) 将经过交叉变异后的个体加入新种群。
+
+  4. 求出当前种群的最优解，更新历史最优个体，并记录训练日志；如果代码运行模式为 debug，则每一定轮数输出当前历史最优距离和变异率，便于观察迭代时种群状态。
+
+  ```python
+  # Main loop
+  for generation in range(generation_count):
+      cfg['generation'] = generation
+      new_population = []
+      sorted_population = sorted(population, key=lambda path: calculate_distance(path, distance_matrix))
+  
+      # Elitism
+      new_population.extend(sorted_population[:elite_size])
+  
+      # Mutation rate
+      mutation_rate = get_mutate(mutation_rate, generation, logs, cfg)
+  
+      # Crossover and mutation
+      while len(new_population) < population_size:
+          parent1 = selection(distance_matrix, population, cfg)
+          parent2 = selection(distance_matrix, population, cfg)
+  
+          if np.random.rand() < crossover_rate:
+              child1, child2 = crossover(parent1, parent2, cfg['crossover_method'])
+          else:
+              child1, child2 = parent1[:], parent2[:]
+  
+          if np.random.rand() < mutation_rate:
+              mutate(child1, cfg['mutation_method'])
+          if np.random.rand() < mutation_rate:
+              mutate(child2, cfg['mutation_method'])
+  
+          new_population.append(child1)
+          new_population.append(child2)
+  
+      population = new_population
+  
+      # Update the best path and distance
+      cur_best_path = min(population, key=lambda path: calculate_distance(path, distance_matrix))
+      cur_best_distance = calculate_distance(cur_best_path, distance_matrix)
+      if cur_best_distance < best_distance:
+          best_path = cur_best_path.copy()
+          best_distance = cur_best_distance
+  
+      logs.append({
+          'generation': generation + 1,
+          'cur_best_distance': cur_best_distance,
+          'best_distance': best_distance,
+          'mutation_rate': mutation_rate
+      })
+      if args.debug and generation % 10 == 0:
+          print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}")
+  
+  return best_path, best_distance, logs
+  ```
+
++ 种群初始化策略：
+
+  实现了：
+
+  + 随机初始化；
+  + Kmeans 聚类初始化
+
+  ```python
+  def init_population(coords, n, cfg):
+      """
+      Initializes a population of paths.
+  
+      Args:
+          coords (np.ndarray): The coordinates of the cities.
+          n (int): The number of cities.
+          cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+              init_method (str): The method for initializing the population ('random', 'kmeans').
+              population_size (int): The size of the population.
+  
+      Returns:
+          list: A list of paths representing the initial population.
+      """
+      population_size = cfg['population_size']
+      if cfg['init_method'] == 'random':
+          population = [random.sample(range(n), n) for _ in range(population_size)]
+      elif cfg['init_method'] == 'kmeans':
+          from sklearn.cluster import KMeans
+          kmeans_cfg = cfg['init_kmeans']
+          n_clusters = kmeans_cfg['n_clusters']
+          kmeans = KMeans(n_clusters=n_clusters, random_state=kmeans_cfg['random_state'])
+          kmeans.fit(coords)
+          labels = kmeans.labels_
+          population = []
+          for i in range(population_size):
+              route = []
+              for j in random.sample(range(n_clusters), n_clusters):
+                  cluster_indices = np.where(labels == j)[0]
+                  if len(cluster_indices) > 0:
+                      np.random.shuffle(cluster_indices)
+                      route.extend(cluster_indices.tolist())
+              population.append(route)
+      else:
+          raise ValueError("Invalid initialization method. Use 'random' or 'kmeans'.")
+      return population
+  ```
+
++ 变异率策略 `get_mutate()`：
+
+  实现了一下变异率策略：
+
+  + 根据种群最优距离变化动态更新；
+  + 根据迭代数线性下降；
+  + 固定变异率
+
+  ```python
+  def get_mutate(mutation_rate, generation, logs, cfg):
+      """
+      Gets the mutation rate based on the current generation and logs.
+      Args:
+          generation (int): The current generation number.
+          logs (list): The logs of the generations.
+          cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+      """
+      if cfg['mutation_rate_method'] == 'adaptive':
+          adapt_cfg = cfg['adaptive_mutation']
+          if len(logs) < 10: 
+              return mutation_rate
+          improvement = logs[-10]['cur_best_distance'] - logs[-1]['cur_best_distance']
+          improvement_rate = improvement / logs[-5]['cur_best_distance']
+          if improvement_rate > adapt_cfg['decay_threshold']:
+              mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
+          elif improvement_rate < adapt_cfg['increase_threshold']:
+              mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
+          return mutation_rate
+      elif cfg['mutation_rate_method'] == 'fixed':
+          return mutation_rate
+      elif cfg['mutation_rate_method'] == 'linear':
+          max_generation = cfg['generation_count']
+          if generation % 100 == 0:
+              mutation_rate = mutation_rate * (1 - generation / max_generation)
+          return max(mutation_rate, 0.01)
+      else:
+          raise ValueError("Invalid mutation rate method.")
+  ```
+
++ 选择策略 `selection()`
+
+  实现了：
+
+  + 锦标赛选择；
+  + 动态锦标赛选择；
+  + 轮盘赌选择
+
+  ```python
+  def selection(distance_matrix, population, cfg):
+      """
+      Selects a parent from the population using the specified method.
+  
+      Args:
+          distance_matrix (np.ndarray): The distance matrix of the cities.
+          population (list): The current population of paths.
+          cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+              method (str): The selection method ('tournament', 'roulette').
+              tournament_size (int): The size of the tournament for selection.
+  
+      Returns:
+          list: The selected parent path.
+      """
+      method = cfg['selection_method']
+      if method == 'tournament':
+          tournament_size = cfg['tournament_size']
+          tournament = random.sample(population, tournament_size)
+          best_path = min(tournament, key=lambda path: calculate_distance(path, distance_matrix))
+          return best_path
+      elif method == 'roulette':
+          fitness = [1 / calculate_distance(path, distance_matrix) for path in population]
+          total_fitness = np.sum(fitness)
+          probabilities = [f / total_fitness for f in fitness]
+          selected_idx = np.random.choice(np.arange(len(population)), p=probabilities)
+          return population[selected_idx]
+      elif method == 'adaptive_tournament':
+          adapt_cfg = cfg['adaptive_tournament']
+          max_size = adapt_cfg['max_size']
+          min_size = adapt_cfg['min_size']
+          tournament_size = max(min_size, int(max_size * (1 - cfg['generation'] / cfg['generation_count'])))
+          tournament = random.sample(population, tournament_size)
+          best_path = min(tournament, key=lambda path: calculate_distance(path, distance_matrix))
+          return best_path
+      else:
+          raise ValueError("Invalid selection method. Use 'tournament' or 'roulette'.")
+  ```
+
++ 交叉算法 `crossover()`：顺序交叉
+
+  ```python
+  def crossover(parent1, parent2, method='order'):
+      """
+      Performs crossover between two parents to create two children.
+  
+      Args:
+          parent1 (list): The first parent path.
+          parent2 (list): The second parent path.
+          method (str): The crossover method ('order').
+  
+      Returns:
+          tuple: Two children paths created
+      """
+      if method == 'order':
+          size = len(parent1)
+          start = np.random.randint(0, size)
+          end = np.random.randint(start + 1, size + 1)
+  
+          child1, child2 = [None] * size, [None] * size
+  
+          child1[start:end] = parent1[start:end]
+          child2[start:end] = parent2[start:end]
+  
+          def fill_child(child, parent):
+              child_pos, parent_pos = end % size, end % size
+              while None in child:
+                  if parent[parent_pos] not in child:
+                      child[child_pos] = parent[parent_pos]
+                      child_pos = (child_pos + 1) % size
+                  parent_pos = (parent_pos + 1) % size
+              return child
+          child1 = fill_child(child1, parent2)
+          child2 = fill_child(child2, parent1)
+  
+          return child1, child2
+      else:
+          raise ValueError("Invalid crossover method. Use 'order'.")
+  ```
+
++ 变异算法 `mutate()`：
+
+  实现了：
+
+  + 交换变异
+  + 逆转变异
+
+  ```python
+  def mutate(path, method='swap'):
+      """
+      Mutates a path using the specified method.
+  
+      Args:
+          path (list): The path to mutate.
+          method (str): The mutation method ('swap', 'invert').
+  
+      Returns:
+          list: The mutated path.
+      """
+      size = len(path)
+      if method == 'swap':
+          idx1, idx2 = np.random.choice(size, 2, replace=False)
+          path[idx1], path[idx2] = path[idx2], path[idx1]
+      elif method == 'invert':
+          start = np.random.randint(0, size)
+          end = np.random.randint(start + 1, size + 1)
+          path[start:end] = reversed(path[start:end])
+      else:
+          raise ValueError("Invalid mutation method. Use 'swap' or 'invert'.")
+      
+      return path
+  ```
 
 ### 3. 创新点 & 优化
 
+#### 启发式搜索
+
++ **线性冲突** 启发式函数：
+
+  基于曼哈顿距离的启发式函数实现简单且能保证一致性，但是忽略的某些局部情况，估值较为不准确，导致 A* 算法扩展状态多，占用内存大，运行效率低。
+
+  线性冲突中，如果两个瓷砖处于同一行或列且它们的目标位置也在同一行或列，但顺序错误（即它们必须互相“跨过”才能到达正确位置），则为每对冲突增加额外代价。
+
+  如果将线性冲突导致的额外代价设定为 2，则可以将曼哈段距离和线性冲突结合，实现更精确地估计当前状态到目标状态的距离。
+  
+  线性冲突实现代码：
+  ```python
+  # Linear Conflict Heuristic
+  for i in range(4):
+      row = [self.state[i][j] - 1 for j in range(4) if self.state[i][j] != 0]
+      for j in range(len(row) - 1):
+          for k in range(j + 1, len(row)):
+              if (row[j] // 4 == i) and (row[k] // 4 == i) and (row[j] % 4 > row[k] % 4):
+                  distance += 2
+      col = [self.state[j][i] - 1 for j in range(4) if self.state[j][i] != 0]
+      for j in range(len(col) - 1):
+          for k in range(j + 1, len(col)):
+              if (col[j] % 4 == i) and (col[k] % 4 == i) and (col[j] // 4 > col[k] // 4):
+                  distance += 2
+  ```
+
+#### 遗传算法
+
++ **代码运行优化**：由于遗传算法中初始化、交叉变异等步骤有多种方法，且待优化的参数较多以及参数优化方式也各有不同；为了方便实验，使用 yaml 文件统一管理并记录各参数。在 `main` 函数中，会自动选择对应的参数并运行遗传算法，极大地降低了调参时的工作量。yaml 大致格式如下：
+
+  ```yaml
+  task_id: 1  # 指定相应的 TSP instance
+  data_dir: data  # relative path to the data directory
+  tsp_instances:  # 已下载的 TSP 数据集
+    - wi29
+    - qa194
+    - rw1621
+    - mu1979
+    - ja9847
+  
+  default:  # 默认参数
+    seed: 273
+    init_method: kmeans  # random or kmeans
+    init_kmeans:  # Kmeans 参数
+      n_clusters: 5
+      max_iter: 100
+      random_state: 42
+    population_size: 200  # 种群大小
+    generation_count: 2000  # 迭代次数
+    tournament_size: 5  # 锦标赛默认大小
+    elite_size: 4  # 精英数
+    crossover_rate: 0.9  # 交叉率
+    mutation_rate: 0.3  # 变异率
+    mutation_rate_method: adaptive  # adaptive or fixed
+    adaptive_mutation:  # 动态调整变异率参数
+      decay_rate: 0.99
+      increase_rate: 1.01
+      decay_threshold: 0.05
+      increase_threshold: 0.01
+    selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+    crossover_method: order  # 交叉方法
+    mutation_method: swap  # swap, invert
+    fitness_function: total_distance
+    adaptive_tournament:  # 动态调整锦标赛参数
+      max_size: 10
+      min_size: 5
+  
+  wi29_best:
+  	# Include the best config for each TSP instance
+  	# ...
+  
+  qa194_best:
+  	# ...
+  ```
+
+  同时为了增加代码运行细节的灵活性，定义了几个代码运行参数：
+  
+  + `debug` - 开启 `debug` 模式，实时输出种群最优距离，变异率等信息，便于在迭代时进行观察；
+  + `log` - 将训练日志写入到结果 `json` 文件中；
+  + `best` - 使用 `config.yaml` 中对应于当前测例 TSP instance 的最优参数；如果没有则使用默认参数
+  
++ **Kmeans 聚类初始化**：
+
+  如果使用随机初始化，初始种群的策略较差，迭代时将花费大量时间搜寻较优解，造成计算资源的浪费。
+
+  Kmeans 聚类初始化首先对所有城市使用聚类算法，分为几簇，簇内优先连边（随机连边）；同时为增加种群多样性，簇间也使用随机连边。
+
+  为精简代码行，直接使用 `sklearn` 库的 Kmeans 聚类实现。
+
+  ```python
+  from sklearn.cluster import KMeans
+  kmeans_cfg = cfg['init_kmeans']
+  n_clusters = kmeans_cfg['n_clusters']
+  kmeans = KMeans(n_clusters=n_clusters, random_state=kmeans_cfg['random_state'])
+  kmeans.fit(coords)
+  labels = kmeans.labels_
+  population = []
+  for i in range(population_size):
+      route = []
+      for j in random.sample(range(n_clusters), n_clusters):
+          cluster_indices = np.where(labels == j)[0]
+          if len(cluster_indices) > 0:
+              np.random.shuffle(cluster_indices)
+              route.extend(cluster_indices.tolist())
+      population.append(route)
+  return population
+  ```
+
++ **动态锦标赛**：如果锦标赛组大小太大，会导致收敛较快，易陷入局部较优解；如果组大小太小，则收敛速度慢。于是考虑对锦标赛的组大小使用根据迭代次数的线性下降，迭代前期加速收敛，迭代后期减慢收敛速度，尽量避免陷入局部最优解。
+
+  ```python
+  adapt_cfg = cfg['adaptive_tournament']
+  max_size = adapt_cfg['max_size']
+  min_size = adapt_cfg['min_size']
+  tournament_size = max(min_size, int(max_size * (1 - cfg['generation'] / cfg['generation_count'])))
+  tournament = random.sample(population, tournament_size)
+  best_path = min(tournament, key=lambda path: calculate_distance(path, distance_matrix))
+  return best_path
+  ```
+
++ **动态变异率**：变异率影响迭代收敛速度以及陷入局部较优解的可能，训练前中期，可能需要较大变异率，加速收敛；训练后期，可能需要较小变异率，以找到最优解，避免在最优解附近反复徘徊。动态变异率根据当前种群和历史种群的优化率，如果优化率较大，则降低变异率，如果优化率较小，则增加变异率。
+
+  ```python
+  adapt_cfg = cfg['adaptive_mutation']
+  if len(logs) < 10: 
+      return mutation_rate
+  improvement = logs[-10]['cur_best_distance'] - logs[-1]['cur_best_distance']
+  improvement_rate = improvement / logs[-5]['cur_best_distance']
+  if improvement_rate > adapt_cfg['decay_threshold']:
+      mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
+  elif improvement_rate < adapt_cfg['increase_threshold']:
+      mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
+  return mutation_rate
+  ```
+
 ## 三、实验结果及分析
 
-### 1. 实验结果展示实力
+### 1. 实验结果展示示例
+
+#### 15-Puzzles
+
++ 对于 A* 算法，无论启发式函数使用曼哈顿距离还是线性冲突结合曼哈顿距离，都无法在 5h 内求出测例六的最优解，可能原因是因为内存使用超过32G，导致使用虚拟内存，访存速度慢，导致算法运行时间大大加长。
+
+  以下给出六个测例使用线性冲突结合曼哈顿距离作为启发式函数的解：
+
+  1. `[15, 6, 9, 15, 11, 10, 3, 11, 10, 3, 8, 4, 3, 7, 6, 9, 14, 13, 9, 10, 11, 12]`
+
+     共 22 步
+
+  2. `[6, 10, 9, 4, 14, 9, 4, 1, 10, 4, 1, 3, 2, 14, 9, 1, 3, 2, 5, 11, 8, 6, 4, 3, 2, 5, 13, 12, 14, 13, 12, 7, 11, 12, 7, 14, 13, 9, 5, 10, 6, 8, 12, 7, 10, 6, 7, 11, 15]`
+
+     共 49 步
+
+  3. `[13, 10, 14, 15, 12, 8, 7, 2, 5, 1, 2, 6, 10, 14, 15]`
+
+     共 15 步
+
+  4. `[9, 12, 13, 5, 1, 9, 7, 11, 2, 4, 12, 13, 9, 7, 11, 2, 15, 3, 2, 15, 4, 11, 15, 8, 14, 1, 5, 9, 13, 15, 7, 14, 10, 6, 1, 5, 9, 13, 14, 10, 6, 2, 3, 4, 8, 7, 11, 12]`
+
+     共 48 步
+
+  5. `[13, 10, 8, 6, 9, 12, 5, 13, 10, 8, 12, 15, 14, 5, 13, 12, 15, 14, 5, 13, 14, 9, 4, 11, 3, 1, 6, 4, 11, 3, 1, 6, 4, 2, 8, 10, 12, 15, 10, 8, 7, 4, 2, 11, 3, 5, 9, 10, 11, 3, 6, 2, 3, 7, 8, 12]`
+
+     共 56 步
+
+  6. 未能找到最优解
+
+  在目录 `week5-1/A_Star_results` 下，存放各解的详细信息，其中 `output_0_MD.txt` 为使用曼哈顿距离作为启发式函数的解，`output_0_LC.txt` 为使用线性冲突结合曼哈顿距离的解，txt 文件中包括一下信息：
+
+  + `Time taken` 算法找到最优解的运行时间
+  + `Visited nodes` 算法找到最优解共扩展的节点个数
+  + `Directions` 每一步中 “方块0” 的移动方向，S-start, L-left, D-down, U-up, R-right
+  + `Path` 最优解每一步中移动的方块编号
+  + `Path length` 最优解长度
+  + 每一步执行后棋盘的状态
+
++ 对于 IDA* 算法，测例五在使用曼哈顿距离作为启发式函数时，大约需要运行 4.5h；使用线性冲突结合曼哈顿距离时，只需要运行约 1h。
+
+  以下给出六个测例使用线性冲突结合曼哈顿距离作为启发式函数的解：
+
+  1. `[3, 10, 11, 3, 15, 6, 9, 15, 10, 11, 8, 4, 3, 7, 6, 9, 14, 13, 9, 10, 11, 12]`
+
+     共 22 步
+
+  2. `[6, 10, 9, 4, 14, 9, 4, 1, 10, 4, 1, 3, 2, 14, 9, 1, 3, 2, 5, 11, 8, 6, 4, 3, 2, 5, 13, 12, 14, 13, 12, 7, 11, 12, 7, 14, 13, 9, 5, 10, 6, 8, 12, 7, 10, 6, 7, 11, 15]`
+
+     共 49 步
+
+  3. `[13, 10, 14, 15, 12, 8, 7, 2, 5, 1, 2, 6, 10, 14, 15]`
+
+     共 15 步
+
+  4. `[9, 12, 13, 5, 1, 9, 7, 11, 2, 4, 12, 13, 9, 7, 11, 2, 15, 3, 2, 15, 4, 11, 15, 8, 14, 1, 5, 9, 13, 15, 7, 14, 10, 6, 1, 5, 9, 13, 14, 10, 6, 2, 3, 4, 8, 7, 11, 12]`
+
+     共 48 步
+
+  5. `[5, 12, 9, 10, 13, 5, 12, 13, 5, 2, 8, 6, 3, 1, 6, 3, 10, 5, 2, 8, 3, 10, 4, 11, 1, 4, 5, 15, 11, 5, 10, 2, 15, 11, 14, 9, 13, 15, 11, 14, 9, 13, 14, 10, 2, 6, 4, 2, 6, 3, 7, 4, 3, 7, 8, 12]`
+
+     共 56 步
+
+  6. `[7, 9, 2, 1, 9, 2, 5, 7, 2, 5, 1, 11, 8, 9, 5, 1, 6, 12, 10, 3, 4, 8, 11, 10, 12, 13, 3, 4, 8, 12, 13, 15, 14, 3, 4, 8, 12, 13, 15, 14, 7, 2, 1, 5, 10, 11, 13, 15, 14, 7, 3, 4, 8, 12, 15, 14, 11, 10, 9, 13, 14, 15]`
+
+     共 62 步
+
+  在目录 `week5-1/IDA_Star_results` 下，存放各解的详细信息，其中 `output_0.txt` 为使用曼哈顿距离作为启发式函数的解，`output_0_LC.txt` 为使用线性冲突结合曼哈顿距离的解，txt 文件中包括一下信息：
+
+  + `Time taken` 算法找到最优解的运行时间
+  + `Directions` 每一步中 “方块0” 的移动方向，S-start, L-left, D-down, U-up, R-right
+  + `Path` 最优解每一步中移动的方块编号
+  + `Path length` 最优解长度
+  + 每一步执行后棋盘的状态
 
 ### 2. 评测指标展示及分析
 

@@ -46,16 +46,16 @@ class Node:
                 distance += abs(i - target_x) + abs(j - target_y)
         # Linear Conflict Heuristic
         for i in range(4):
-            row = [self.state[i][j] for j in range(4) if self.state[i][j] != 0]
+            row = [self.state[i][j] - 1 for j in range(4) if self.state[i][j] != 0]
             for j in range(len(row) - 1):
                 for k in range(j + 1, len(row)):
                     if (row[j] // 4 == i) and (row[k] // 4 == i) and (row[j] % 4 > row[k] % 4):
                         distance += 2
-            # col = [self.state[j][i] for j in range(4) if self.state[j][i] != 0]
-            # for j in range(len(col) - 1):
-            #     for k in range(j + 1, len(col)):
-            #         if (col[j] % 4 == i) and (col[k] % 4 == i) and (col[j] // 4 > col[k] // 4):
-            #             distance += 2
+            col = [self.state[j][i] - 1 for j in range(4) if self.state[j][i] != 0]
+            for j in range(len(col) - 1):
+                for k in range(j + 1, len(col)):
+                    if (col[j] % 4 == i) and (col[k] % 4 == i) and (col[j] // 4 > col[k] // 4):
+                        distance += 2
         return distance
 
     def neighbors(self):

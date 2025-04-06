@@ -154,7 +154,7 @@ def crossover(parent1, parent2, method='order'):
     Args:
         parent1 (list): The first parent path.
         parent2 (list): The second parent path.
-        method (str): The crossover method ('order', 'pmx').
+        method (str): The crossover method ('order').
 
     Returns:
         tuple: Two children paths created
@@ -182,7 +182,7 @@ def crossover(parent1, parent2, method='order'):
 
         return child1, child2
     else:
-        raise ValueError("Invalid crossover method. Use 'order' or 'pmx'.")
+        raise ValueError("Invalid crossover method. Use 'order'.")
 
 def get_mutate(mutation_rate, generation, logs, cfg):
     """
@@ -306,19 +306,13 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
 
     # Initialize the population
     population = init_population(coords, n, cfg)
-    # for i in range(population_size):
-    #     population.append(random.sample(range(n), n))
-    # if args.debug:
-        # print(f"Initial population: {population}")
     
     # Initialize the best path and distance
     best_path = min(population, key=lambda path: calculate_distance(path, distance_matrix))
     best_distance = calculate_distance(best_path, distance_matrix)
     logs = [{
         'generation': 0,
-        # 'cur_best_path': best_path,
         'cur_best_distance': best_distance,
-        # 'best_path': best_path,
         'best_distance': best_distance,
         'mutation_rate': mutation_rate,
     }]
@@ -366,9 +360,7 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
 
         logs.append({
             'generation': generation + 1,
-            # 'cur_best_path': cur_best_path,
             'cur_best_distance': cur_best_distance,
-            # 'best_path': best_path,
             'best_distance': best_distance,
             'mutation_rate': mutation_rate
         })
