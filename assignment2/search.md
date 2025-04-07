@@ -1,4 +1,28 @@
-# 23336020 周子健 Week3 实验报告
+# 23336020 周子健 Week5 实验报告
+
+本次实验提交目录如下：
+
+```
+23336020_周子健_第五周作业
+- week5.pdf
+- code/
+	- week5-1/  # A*算法
+		- week5-1.py
+		- output/
+			- output_0_MD.txt
+			- output_1_LC.txt
+			# ...
+    - week5-2/  # IDA*算法
+    	- week5-2.py
+    	- output/
+    		- output_0.txt
+    		- output_0_LC.txt
+    		# ...
+    - week5-3/  # GA算法
+    	- week5-3.py
+    	- config.yaml
+    - requirements.txt  # 本次作业依赖文件
+```
 
 ## 一、实验题目
 
@@ -281,8 +305,9 @@
       # Elitism
       new_population.extend(sorted_population[:elite_size])
   
-      # Mutation rate
+      # Mutation rate and Crossover rate adjustment
       mutation_rate = get_mutate(mutation_rate, generation, logs, cfg)
+      crossover_rate = get_crossover_rate(crossover_rate, generation, cfg)
   
       # Crossover and mutation
       while len(new_population) < population_size:
@@ -295,9 +320,9 @@
               child1, child2 = parent1[:], parent2[:]
   
           if np.random.rand() < mutation_rate:
-              mutate(child1, cfg['mutation_method'])
+              mutate(generation, cfg, child1, cfg['mutation_method'])
           if np.random.rand() < mutation_rate:
-              mutate(child2, cfg['mutation_method'])
+              mutate(generation, cfg, child2, cfg['mutation_method'])
   
           new_population.append(child1)
           new_population.append(child2)
@@ -317,10 +342,8 @@
           'best_distance': best_distance,
           'mutation_rate': mutation_rate
       })
-      if args.debug and generation % 10 == 0:
-          print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}")
-  
-  return best_path, best_distance, logs
+      if args.debug and generation % 50 == 0:
+          print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}, Crossover rate: {crossover_rate}")
   ```
 
 + 种群初始化策略：
@@ -339,7 +362,7 @@
           coords (np.ndarray): The coordinates of the cities.
           n (int): The number of cities.
           cfg (dict): Configuration dictionary containing the parameters for the algorithm.
-              init_method (str): The method for initializing the population ('random', 'kmeans').
+              init_method (str): The method for initializing the population ('random', 'greedy').
               population_size (int): The size of the population.
   
       Returns:
@@ -352,7 +375,7 @@
           from sklearn.cluster import KMeans
           kmeans_cfg = cfg['init_kmeans']
           n_clusters = kmeans_cfg['n_clusters']
-          kmeans = KMeans(n_clusters=n_clusters, random_state=kmeans_cfg['random_state'])
+          kmeans = KMeans(n_clusters=n_clusters, max_iter=kmeans_cfg['max_iter'], random_state=cfg['seed']+2)
           kmeans.fit(coords)
           labels = kmeans.labels_
           population = []
@@ -395,7 +418,7 @@
           if improvement_rate > adapt_cfg['decay_threshold']:
               mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
           elif improvement_rate < adapt_cfg['increase_threshold']:
-              mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.3)
+              mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.6)
           return mutation_rate
       elif cfg['mutation_rate_method'] == 'fixed':
           return mutation_rate
@@ -423,7 +446,7 @@
       if cfg['crossover_rate_method'] == 'linear':
           max_generation = cfg['generation_count']
           if generation % 100 == 0:
-              crossover_rate = crossover_rate - (cfg['crossover_rate'] - 0.6) * (generation / max_generation)
+              crossover_rate = 0.6 + (cfg['crossover_rate'] - 0.6) * (1 - generation / max_generation)
           return max(crossover_rate, 0.6)
       elif cfg['crossover_rate_method'] == 'fixed':
           return crossover_rate
@@ -476,6 +499,7 @@
           return best_path
       else:
           raise ValueError("Invalid selection method. Use 'tournament' or 'roulette'.")
+  
   ```
 
 + 交叉算法 `crossover()`：顺序交叉
@@ -525,15 +549,18 @@
 
   + 交换变异
   + 逆转变异
-
+  + 动态变异
+  
   ```python
-  def mutate(path, method='swap'):
+  def mutate(generation, cfg, path, method='swap'):
       """
       Mutates a path using the specified method.
   
       Args:
+          generation (int): The current generation number.
           path (list): The path to mutate.
-          method (str): The mutation method ('swap', 'invert').
+          cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+          method (str): The mutation method ('swap', 'invert', 'adaptive').
   
       Returns:
           list: The mutated path.
@@ -546,6 +573,11 @@
           start = np.random.randint(0, size)
           end = np.random.randint(start + 1, size + 1)
           path[start:end] = reversed(path[start:end])
+      elif method == 'adaptive':
+          if generation / cfg['generation_count'] > 0.8:
+              return mutate(generation, cfg, path, 'swap')
+          else:
+              return mutate(generation, cfg, path, 'invert')
       else:
           raise ValueError("Invalid mutation method. Use 'swap' or 'invert'.")
       
@@ -621,6 +653,12 @@
       max_size: 10
       min_size: 5
   
+  improvement:  # 优化参数1
+  	# ...
+  
+  improvement2:  # 优化参数2
+  	# ...
+  
   wi29_best:
   	# Include the best config for each TSP instance
   	# ...
@@ -628,12 +666,14 @@
   qa194_best:
   	# ...
   ```
-
+  
   同时为了增加代码运行细节的灵活性，定义了几个代码运行参数：
   
   + `debug` - 开启 `debug` 模式，实时输出种群最优距离，变异率等信息，便于在迭代时进行观察；
   + `log` - 将训练日志写入到结果 `json` 文件中；
   + `best` - 使用 `config.yaml` 中对应于当前测例 TSP instance 的最优参数；如果没有则使用默认参数
+  + `seed` - 指定随机种子，覆盖 `config.yaml`，默认为 42
+  + `ver` - 指定参数版本，默认为 default
   
 + **Kmeans 聚类初始化**：
 
@@ -732,7 +772,7 @@
 
   6. 未能找到最优解
 
-  在目录 `week5-1/A_Star_results` 下，存放各解的详细信息，其中 `output_0_MD.txt` 为使用曼哈顿距离作为启发式函数的解，`output_0_LC.txt` 为使用线性冲突结合曼哈顿距离的解，txt 文件中包括一下信息：
+  在目录 `output` 下，存放各解的详细信息，其中 `output_0_MD.txt` 为使用曼哈顿距离作为启发式函数的解，`output_0_LC.txt` 为使用线性冲突结合曼哈顿距离的解，txt 文件中包括一下信息：
 
   + `Time taken` 算法找到最优解的运行时间
   + `Visited nodes` 算法找到最优解共扩展的节点个数
@@ -769,7 +809,7 @@
 
      共 62 步
 
-  在目录 `week5-1/IDA_Star_results` 下，存放各解的详细信息，其中 `output_0.txt` 为使用曼哈顿距离作为启发式函数的解，`output_0_LC.txt` 为使用线性冲突结合曼哈顿距离的解，txt 文件中包括一下信息：
+  在目录 `output` 下，存放各解的详细信息，其中 `output_0.txt` 为使用曼哈顿距离作为启发式函数的解，`output_0_LC.txt` 为使用线性冲突结合曼哈顿距离的解，txt 文件中包括一下信息：
 
   + `Time taken` 算法找到最优解的运行时间
   + `Directions` 每一步中 “方块0” 的移动方向，S-start, L-left, D-down, U-up, R-right
@@ -997,7 +1037,7 @@
 | generation=2000 |  10479  |  10565  |  10422  |  10426  |  10486   |    10475     |
 | generation=3000 |  10279  |  10291  |  10292  |  10355  |  10399   |    10323     |
 
-可见算法只有几乎没有增长，以下为最后一次的结果图：
+可见最优解几乎没有增长，以下为最后一次的结果图：
 
 <img src="./search.assets/image-20250407162131351.png" alt="image-20250407162131351" style="zoom:67%;" />
 
@@ -1010,16 +1050,16 @@
 |        population        |         200         |
 |      max_generation      |        3000         |
 |       init_method        |       kmeans        |
-|        n_clusters        |         10          |
+|        n_clusters        |         50          |
 |     selection_method     | adaptive tournament |
-|     tournament_size      |        10-5         |
+|     tournament_size      |        20-5         |
 |        elite_size        |          4          |
 |     crossover_method     |        order        |
 |  crossover_rate_method   |       linear        |
 |      crossover_rate      |         0.9         |
 |     mutation_method      |      adaptive       |
 |   mutation_rate_method   |      adaptive       |
-|      mutation_rate       |      0.3-0.01       |
+|      mutation_rate       |      0.6-0.01       |
 |   mutation_decay_rate    |        0.99         |
 |  mutation_increase_rate  |        1.01         |
 |  mutation_decay_method   |        0.05         |
@@ -1027,11 +1067,15 @@
 
 |   Task: zi929   | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
 | :-------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
-| generation=3000 | 175820  | 181592  | 185366  | 194852  |  181905  |    183907    |
+| generation=3000 | 146639  | 148747  | 144112  | 144578  |  147856  |    146386    |
 
-<img src="./search.assets/image-20250407183430691.png" alt="image-20250407183430691" style="zoom:67%;" />
+![image-20250407195015774](./search.assets/image-20250407195015774.png)
 
-算法的结果并不是非常理想，可以看出还有改进空间。
+![image-20250407200039461](./search.assets/image-20250407200039461.png)
+
+算法的结果并不是非常理想，收敛速度慢，主要原因是节点数过多，算法对于局部的点群很难优化到最优，可能需要结合局部搜索算法。
 
 ## 四、参考资料
 
++ [wikipedia-A*](https://en.wikipedia.org/wiki/A*_search_algorithm)
++ https://en.wikipedia.org/wiki/Genetic_algorithm
