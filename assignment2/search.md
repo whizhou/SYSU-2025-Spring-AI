@@ -395,19 +395,42 @@
           if improvement_rate > adapt_cfg['decay_threshold']:
               mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
           elif improvement_rate < adapt_cfg['increase_threshold']:
-              mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
+              mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.3)
           return mutation_rate
       elif cfg['mutation_rate_method'] == 'fixed':
           return mutation_rate
       elif cfg['mutation_rate_method'] == 'linear':
           max_generation = cfg['generation_count']
           if generation % 100 == 0:
-              mutation_rate = mutation_rate * (1 - generation / max_generation)
+              mutation_rate = cfg['mutation_rate'] * (1 - generation / max_generation)
           return max(mutation_rate, 0.01)
       else:
           raise ValueError("Invalid mutation rate method.")
   ```
 
++ 交叉率策略 `get_crossover_rate()`:
+
+  ```python
+  def get_crossover_rate(crossover_rate, generation, cfg):
+      """
+      Gets the crossover rate based on the current generation.
+      
+      Args:
+          crossover_rate (float): The current crossover rate.
+          generation (int): The current generation number.
+          cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+      """
+      if cfg['crossover_rate_method'] == 'linear':
+          max_generation = cfg['generation_count']
+          if generation % 100 == 0:
+              crossover_rate = crossover_rate - (cfg['crossover_rate'] - 0.6) * (generation / max_generation)
+          return max(crossover_rate, 0.6)
+      elif cfg['crossover_rate_method'] == 'fixed':
+          return crossover_rate
+      else:
+          raise ValueError("Invalid crossover rate method.")
+  ```
+  
 + 选择策略 `selection()`
 
   实现了：
@@ -665,6 +688,17 @@
       mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
   return mutation_rate
   ```
+  
++ **线性下降交叉率**：迭代后期，使得交叉率下降以增强局部探索能力
+
+  ```python
+  max_generation = cfg['generation_count']
+  if generation % 100 == 0:
+      crossover_rate = crossover_rate - (cfg['crossover_rate'] - 0.6) * (generation / max_generation)
+  return max(crossover_rate, 0.6)
+  ```
+
+  
 
 ## 三、实验结果及分析
 
@@ -749,34 +783,38 @@
 
   | Task | 运行时间1(s) | 扩展节点1 | 运行时间2(s) | 扩展节点2 | 时间提升(%) | 空间提升(%) |
   | :--: | :----------: | :-------: | :----------: | :-------: | :---------: | :---------: |
-  |  1   |              |           |              |           |             |             |
-  |  2   |              |           |              |           |             |             |
-  |  3   |              |           |              |           |             |             |
-  |  4   |              |           |              |           |             |             |
-  |  5   |              |           |              |           |             |             |
-  |  6   |              |           |              |           |             |             |
+  |  1   |      0       |    200    |     0.01     |    157    |      -      |    21.5     |
+  |  2   |    26.34     |  1531236  |    15.02     |  365287   |    50.0     |    76.1     |
+  |  3   |      0       |    20     |      0       |    20     |      -      |      -      |
+  |  4   |    52.37     |  2947199  |    33.19     |  738747   |    36.6     |    74.9     |
+  |  5   |   11063.49   | 56338473  |    205.88    |  3885656  |    98.1     |    93.1     |
+  |  6   |      -       |     -     |      -       |     -     |      -      |      -      |
+
+  可以看出，最优解步数越长，线性冲突提升效果越大。
 
 + 对于 IDA* 算法，用运行时间作为评测指标，对比见下表，其中，指标1为使用曼哈顿距离启发式函数，指标2为使用线性冲突结合曼哈顿距离启发式函数：
 
-  | Task | 运行时间1(s) | 运行时间2(s) | 时间提升(%) | 空间提升(%) |
-  | :--: | :----------: | :----------: | :---------: | :---------: |
-  |  1   |              |              |             |             |
-  |  2   |              |              |             |             |
-  |  3   |              |              |             |             |
-  |  4   |              |              |             |             |
-  |  5   |              |              |             |             |
-  |  6   |              |              |             |             |
+  | Task | 运行时间1(s) | 运行时间2(s) | 时间提升(%) |
+  | :--: | :----------: | :----------: | :---------: |
+  |  1   |      0       |      0       |      -      |
+  |  2   |    98.75     |    44.63     |    54.8     |
+  |  3   |      0       |      0       |      -      |
+  |  4   |    153.70    |    51.66     |    66.3     |
+  |  5   |   6753.01    |    467.02    |    93.1     |
+  |  6   |   16400.95   |   3478.45    |    78.8     |
 
 + 最后，以运行时间作为指标，对比 A* 算法和 IDA* 算法的运行效率：
 
-  | Task | A*(s) | IDA*(s) | 时间提升(%) |
-  | :--: | :---: | :-----: | :---------: |
-  |  1   |       |         |             |
-  |  2   |       |         |             |
-  |  3   |       |         |             |
-  |  4   |       |         |             |
-  |  5   |       |         |             |
-  |  6   |       |         |             |
+  | Task | A*(s)  | IDA*(s) | 时间提升(%) |
+  | :--: | :----: | :-----: | :---------: |
+  |  1   |   0    |    0    |      -      |
+  |  2   | 15.02  |  44.63  |    66.3     |
+  |  3   |   0    |    0    |      -      |
+  |  4   | 33.19  |  51.66  |    35.8     |
+  |  5   | 205.88 | 467.02  |    55.9     |
+  |  6   |   -    | 3478.45 |      -      |
+  
+  可以看到，A* 算法的运行效率高于 IDA*
 
 ### 遗传算法
 
@@ -812,6 +850,8 @@
 > ```
 
 #### wi29
+
+> 注：数据图都使用随机种子 `seed=42`
 
 首先我们使用 wi29 任务，使用相同参数，测试 init_method, mutation_rate, mutation_rate_method, mutation_method 等策略的使用效果。
 
@@ -853,7 +893,7 @@
 
     <img src="./search.assets/image-20250407102608818.png" alt="image-20250407102608818" style="zoom:50%;" />
 
-    <img src="./search.assets/image-20250407102651035.png" alt="image-20250407102651035" style="zoom:50%;" />
+    <img src="./search.assets/image-20250407145308353.png" alt="image-20250407145308353" style="zoom:50%;" />
 
   + adaptive mutation_rate (init=0.3)，平均最优距离 30538
 
@@ -899,45 +939,99 @@
   + adaptive tournament：动态调整锦标赛由于在初期组大小较大，所以收敛速度比普通锦标赛更快，低于城市数更多的测例，能够加速收敛；后期组大小变低，利于找到最优解。
 
     <img src="./search.assets/image-20250407114746296.png" alt="image-20250407114746296" style="zoom:50%;" />
-
-  但是 roulette 对于性能开销较大，运行时间较长，所以之后 **均使用动态锦标赛算法**。
+    
+    但是 roulette 对于性能开销较大，运行时间较长，所以之后 **均使用动态锦标赛算法**。
+  
+  经过以上分析，最后我们可以得出部分优化后的参数选项：
+  
+  |          config          |    default value    |
+  | :----------------------: | :-----------------: |
+  |        population        |         200         |
+  |      max_generation      |        2000         |
+  |       init_method        |       kmeans        |
+  |        n_clusters        |          5          |
+  |     selection_method     | adaptive tournament |
+  |     tournament_size      |        10-5         |
+  |        elite_size        |          4          |
+  |     crossover_method     |        order        |
+  |      crossover_rate      |         0.9         |
+  |     mutation_method      |       invert        |
+  |   mutation_rate_method   |       linear        |
+  |      mutation_rate       |      0.1-0.01       |
+  |   mutation_decay_rate    |        0.99         |
+  |  mutation_increase_rate  |        1.01         |
+  |  mutation_decay_method   |        0.05         |
+  | mutation_increase_method |        0.01         |
+  
+  用此作为参数，得到 wi29 的结果如下：
+  
+  | Task: wi29  | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+  | :---------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+  | improvement |  29069  |  27749  |  27601  |  28777  |  28293   |    27697     |
+  
+  <img src="./search.assets/image-20250407164947607.png" alt="image-20250407164947607" style="zoom:67%;" />
 
 #### qa194
 
-使用 wi29 分析后，可以得到部分优化后的参数选项：
-
-|          config          |     default value      |
-| :----------------------: | :--------------------: |
-|       population         |   200                  |
-|       max_generation     |   3000                 |
-|       init_method        |    kmeans              |
-|        n_clusters        |       5                |
-|     selection_method     |  adaptive tournament   |
-|     tournament_size      |       10-5             |
-|        elite_size        |        4               |
-|     crossover_method     |     order     |
-|      crossover_rate      |      0.9      |
-|     mutation_method      |     invert      |
-|   mutation_rate_method   |     linear     |
-|      mutation_rate       |      0.3-0.01      |
-|   mutation_decay_rate    |     0.99      |
-|  mutation_increase_rate  |     1.01      |
-|  mutation_decay_method   |     0.05      |
-| mutation_increase_method |     0.01      |
-
 接下来使用 qa194 测例，考察节点数增加后的参数影响：
 
-|     Task: qa194     | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
-| :-----------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
-|      improvment     |  11432  |  11788  |  12117  |  11293  |  11902   |     11706    |
-|   adaptive mutate   |  10342  |  10402  |  10336  |  10516  |  10461   |     10411    |
-| crossover_rate=0.8  |  11815  |  11545  |  11403  |  11456  |  11184   |     11480    |
+|    Task: qa194     | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+| :----------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+|    improvement     |  11432  |  11788  |  12117  |  11293  |  11902   |    11706     |
+|  adaptive mutate   |  10342  |  10402  |  10336  |  10516  |  10461   |    10411     |
+| crossover_rate=0.8 |  11815  |  11545  |  11403  |  11456  |  11184   |    11480     |
 
 可见，在多节点时，使用动态变异率对最终结果有一定的提升，观察变异率曲线，可以发现变异率在中期降低，后期增高至最大值；适当降低交叉率，对于最终结果有些微的改进，大概是由于迭代后期需要适当降低交叉率，以增强在局部搜索的能力。
 
 故我们考虑采用线性下降变异率+线性下降交叉率的方式，前期变异率和交叉率都较高，加快收敛；后期变异率和交叉率降低，对局部进行更精细的搜索。得出结果如下所示：
 
+|   Task: qa194   | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+| :-------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+| generation=2000 |  10572  |  10352  |  10944  |  10394  |  10771   |    10607     |
+| generation=3000 |  10524  |  10272  |  10280  |  10639  |  10034   |    10349     |
 
+结果任然不理想，猜测只对变异率进行调整无法同时满足探索的多样性和精细化，因此我们考虑结合动态调整变异率，使用动态调整变异策略，在迭代前期使用强力变异算子（片段逆转），在迭代后期时温和变异算子（单点交换），设定阈值为总迭代次数的80%
+
+|   Task: qa194   | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+| :-------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+| generation=2000 |  10479  |  10565  |  10422  |  10426  |  10486   |    10475     |
+| generation=3000 |  10279  |  10291  |  10292  |  10355  |  10399   |    10323     |
+
+可见算法只有几乎没有增长，以下为最后一次的结果图：
+
+<img src="./search.assets/image-20250407162131351.png" alt="image-20250407162131351" style="zoom:67%;" />
+
+#### zi929
+
+最后，选择一个较大的数据点来测试遗传算法性能，参数如下：
+
+|          config          |    improvement2     |
+| :----------------------: | :-----------------: |
+|        population        |         200         |
+|      max_generation      |        3000         |
+|       init_method        |       kmeans        |
+|        n_clusters        |         10          |
+|     selection_method     | adaptive tournament |
+|     tournament_size      |        10-5         |
+|        elite_size        |          4          |
+|     crossover_method     |        order        |
+|  crossover_rate_method   |       linear        |
+|      crossover_rate      |         0.9         |
+|     mutation_method      |      adaptive       |
+|   mutation_rate_method   |      adaptive       |
+|      mutation_rate       |      0.3-0.01       |
+|   mutation_decay_rate    |        0.99         |
+|  mutation_increase_rate  |        1.01         |
+|  mutation_decay_method   |        0.05         |
+| mutation_increase_method |        0.01         |
+
+|   Task: zi929   | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+| :-------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+| generation=3000 | 175820  | 181592  | 185366  | 194852  |  181905  |    183907    |
+
+<img src="./search.assets/image-20250407183430691.png" alt="image-20250407183430691" style="zoom:67%;" />
+
+算法的结果并不是非常理想，可以看出还有改进空间。
 
 ## 四、参考资料
 
