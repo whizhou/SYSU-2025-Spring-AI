@@ -9,6 +9,7 @@ from pathlib import Path
 parser = ArgumentParser(description="Genetic Algorithm for TSP")
 parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 parser.add_argument('--best', action='store_true', help='Enable best mode')
+parser.add_argument('--ver', type=str, default='default', help='Version of the configuration to use')
 parser.add_argument('--log', action='store_true', help='Enable log mode')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
 args = parser.parse_args()
@@ -202,25 +203,27 @@ def get_mutate(mutation_rate, generation, logs, cfg):
         if improvement_rate > adapt_cfg['decay_threshold']:
             mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
         elif improvement_rate < adapt_cfg['increase_threshold']:
-            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.3)
+            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.6)
         return mutation_rate
     elif cfg['mutation_rate_method'] == 'fixed':
         return mutation_rate
     elif cfg['mutation_rate_method'] == 'linear':
         max_generation = cfg['generation_count']
         if generation % 100 == 0:
-            mutation_rate = mutation_rate * (1 - generation / max_generation)
+            mutation_rate = cfg['mutation_rate'] * (1 - generation / max_generation)
         return max(mutation_rate, 0.01)
     else:
         raise ValueError("Invalid mutation rate method.")
 
-def mutate(path, method='swap'):
+def mutate(generation, cfg, path, method='swap'):
     """
     Mutates a path using the specified method.
 
     Args:
+        generation (int): The current generation number.
         path (list): The path to mutate.
-        method (str): The mutation method ('swap', 'invert').
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+        method (str): The mutation method ('swap', 'invert', 'adaptive').
 
     Returns:
         list: The mutated path.
@@ -233,6 +236,11 @@ def mutate(path, method='swap'):
         start = np.random.randint(0, size)
         end = np.random.randint(start + 1, size + 1)
         path[start:end] = reversed(path[start:end])
+    elif method == 'adaptive':
+        if generation / cfg['generation_count'] > 0.8:
+            return mutate(generation, cfg, path, 'swap')
+        else:
+            return mutate(generation, cfg, path, 'invert')
     else:
         raise ValueError("Invalid mutation method. Use 'swap' or 'invert'.")
     
@@ -274,6 +282,26 @@ def init_population(coords, n, cfg):
     else:
         raise ValueError("Invalid initialization method. Use 'random' or 'kmeans'.")
     return population
+
+
+def get_crossover_rate(crossover_rate, generation, cfg):
+    """
+    Gets the crossover rate based on the current generation.
+    
+    Args:
+        crossover_rate (float): The current crossover rate.
+        generation (int): The current generation number.
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+    """
+    if cfg['crossover_rate_method'] == 'linear':
+        max_generation = cfg['generation_count']
+        if generation % 100 == 0:
+            crossover_rate = 0.6 + (cfg['crossover_rate'] - 0.6) * (1 - generation / max_generation)
+        return max(crossover_rate, 0.6)
+    elif cfg['crossover_rate_method'] == 'fixed':
+        return crossover_rate
+    else:
+        raise ValueError("Invalid crossover rate method.")
 
 def genetic_tsp(coords, distance_matrix, n, cfg):
     """
@@ -329,8 +357,9 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
         # Elitism
         new_population.extend(sorted_population[:elite_size])
 
-        # Mutation rate
+        # Mutation rate and Crossover rate adjustment
         mutation_rate = get_mutate(mutation_rate, generation, logs, cfg)
+        crossover_rate = get_crossover_rate(crossover_rate, generation, cfg)
 
         # Crossover and mutation
         while len(new_population) < population_size:
@@ -343,9 +372,9 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
                 child1, child2 = parent1[:], parent2[:]
 
             if np.random.rand() < mutation_rate:
-                mutate(child1, cfg['mutation_method'])
+                mutate(generation, cfg, child1, cfg['mutation_method'])
             if np.random.rand() < mutation_rate:
-                mutate(child2, cfg['mutation_method'])
+                mutate(generation, cfg, child2, cfg['mutation_method'])
 
             new_population.append(child1)
             new_population.append(child2)
@@ -366,7 +395,7 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
             'mutation_rate': mutation_rate
         })
         if args.debug and generation % 50 == 0:
-            print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}")
+            print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}, Crossover rate: {crossover_rate}")
     
     return best_path, best_distance, logs
 
@@ -392,7 +421,7 @@ def main():
     if args.best:
         cfg = config.get(f'{tsp_instance}_best', config['default'])
     else:
-        cfg = config.get(tsp_instance, config['default'])
+        cfg = config.get(args.ver, config['default'])
 
     # Set the random seed for reproducibility
     if args.seed:
@@ -420,6 +449,7 @@ def main():
     print(f"Tournament Size: {cfg['tournament_size']}")
     print(f"Elite Size: {cfg['elite_size']}")
     print(f"Crossover Rate: {cfg['crossover_rate']}")
+    print(f"Crossover Rate Method: {cfg['crossover_rate_method']}")
     print(f"Mutation Rate: {cfg['mutation_rate']}")
     print(f"Mutation Rate Method: {cfg['mutation_rate_method']}")
     print(f"Selection Method: {cfg['selection_method']}")
@@ -487,7 +517,7 @@ def plot_path(coords, path, tsp_instance, distance, output_file):
     import matplotlib.pyplot as plt
 
     plt.figure(figsize=(10, 6))
-    plt.plot(coords[path, 0], coords[path, 1], 'o-', markersize=2)
+    plt.plot(coords[path, 0], coords[path, 1], 'o-', markersize=3)
     plt.plot([coords[path[-1], 0], coords[path[0], 0]], [coords[path[-1], 1], coords[path[0], 1]], 'o-')
     plt.title('TSP Instance: {}, Distance: {:.0f}'.format(tsp_instance, distance))
     plt.xlabel('X Coordinate')
