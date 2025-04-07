@@ -142,3 +142,30 @@ qa194_best:
   adaptive_tournament:
     max_size: 10
     min_size: 5
+
+zi929_best:
+  seed: 17  # 17, 37, 42, 78, 159
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 50
+    max_iter: 300
+  population_size: 200
+  generation_count: 3000
+  tournament_size: 5
+  elite_size: 4
+  crossover_rate: 0.9
+  crossover_rate_method: linear  # fixed or linear
+  mutation_rate: 0.6  # 0.01, 0.1, 0.3
+  mutation_rate_method: adaptive  # adaptive, fixed or linear
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.05
+    increase_threshold: 0.01
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+  crossover_method: order  # order or pmx
+  mutation_method: adaptive  # swap, invert or adaptive
+  fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 20
+    min_size: 5

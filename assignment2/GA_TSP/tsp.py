@@ -11,7 +11,7 @@ parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 parser.add_argument('--best', action='store_true', help='Enable best mode')
 parser.add_argument('--ver', type=str, default='default', help='Version of the configuration to use')
 parser.add_argument('--log', action='store_true', help='Enable log mode')
-parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+parser.add_argument('--seed', type=int, default=None, help='Random seed for reproducibility')
 args = parser.parse_args()
 
 def read_tsp_data(filename):
@@ -444,6 +444,9 @@ def main():
     print("\nConfiguration:")
     print(f"Seed: {cfg['seed']}")
     print(f"Initialization Method: {cfg['init_method']}")
+    if cfg['init_method'] == 'kmeans':
+        print(f"KMeans Clusters: {cfg['init_kmeans']['n_clusters']}")
+        print(f"KMeans Max Iterations: {cfg['init_kmeans']['max_iter']}")
     print(f"Population Size: {cfg['population_size']}")
     print(f"Generation Count: {cfg['generation_count']}")
     print(f"Tournament Size: {cfg['tournament_size']}")
