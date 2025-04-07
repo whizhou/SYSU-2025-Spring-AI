@@ -668,9 +668,9 @@
 
 ## 三、实验结果及分析
 
-### 1. 实验结果展示示例
+### 15-Puzzles
 
-#### 15-Puzzles
+#### 1. 实验结果展示示例
 
 + 对于 A* 算法，无论启发式函数使用曼哈顿距离还是线性冲突结合曼哈顿距离，都无法在 5h 内求出测例六的最优解，可能原因是因为内存使用超过32G，导致使用虚拟内存，访存速度慢，导致算法运行时间大大加长。
 
@@ -743,7 +743,166 @@
   + `Path length` 最优解长度
   + 每一步执行后棋盘的状态
 
-### 2. 评测指标展示及分析
+#### 2. 评测指标展示及分析
+
++ 对于 A* 算法，用算法运行时间和扩展节点数 (内存使用) 作为评测指标，对比见下表，其中，指标1为使用曼哈顿距离启发式函数，指标2为使用线性冲突结合曼哈顿距离启发式函数：
+
+  | Task | 运行时间1(s) | 扩展节点1 | 运行时间2(s) | 扩展节点2 | 时间提升(%) | 空间提升(%) |
+  | :--: | :----------: | :-------: | :----------: | :-------: | :---------: | :---------: |
+  |  1   |              |           |              |           |             |             |
+  |  2   |              |           |              |           |             |             |
+  |  3   |              |           |              |           |             |             |
+  |  4   |              |           |              |           |             |             |
+  |  5   |              |           |              |           |             |             |
+  |  6   |              |           |              |           |             |             |
+
++ 对于 IDA* 算法，用运行时间作为评测指标，对比见下表，其中，指标1为使用曼哈顿距离启发式函数，指标2为使用线性冲突结合曼哈顿距离启发式函数：
+
+  | Task | 运行时间1(s) | 运行时间2(s) | 时间提升(%) | 空间提升(%) |
+  | :--: | :----------: | :----------: | :---------: | :---------: |
+  |  1   |              |              |             |             |
+  |  2   |              |              |             |             |
+  |  3   |              |              |             |             |
+  |  4   |              |              |             |             |
+  |  5   |              |              |             |             |
+  |  6   |              |              |             |             |
+
++ 最后，以运行时间作为指标，对比 A* 算法和 IDA* 算法的运行效率：
+
+  | Task | A*(s) | IDA*(s) | 时间提升(%) |
+  | :--: | :---: | :-----: | :---------: |
+  |  1   |       |         |             |
+  |  2   |       |         |             |
+  |  3   |       |         |             |
+  |  4   |       |         |             |
+  |  5   |       |         |             |
+  |  6   |       |         |             |
+
+### 遗传算法
+
+> 注：由于本次实验时间限制（实验时间短+中间有清明节假期），在进行参数设置时只能选择使用节点数较少的测例进行测试，可能导致对于节点数较多的测例适用性不佳；并且时间限制了更为全面的测试设计，可能导致参数测试看起来有些不合理；同时由于时间局促，无法在实验报告中展现全部测试过程，只能展现部分测试过程和结果。
+
+|          config          |                  value                  | default value |
+| :----------------------: | :-------------------------------------: | :-----------: |
+|        population        |                 100/200                 |      200      |
+|        generation        |                2000/5000                |     2000      |
+|       init_method        |              random/kmeans              |    random     |
+|        n_clusters        |                  5/10                   |       5       |
+|     selection_method     | tournament/roulette/adaptive tournament |  tournament   |
+|     tournament_size      |                  5/10                   |       5       |
+|        elite_size        |                  4/10                   |       4       |
+|     crossover_method     |                  order                  |     order     |
+|      crossover_rate      |                 0.6/0.9                 |      0.9      |
+|     mutation_method      |               swap/invert               |     swap      |
+|   mutation_rate_method   |          fixed/adaptive/linear          |     fixed     |
+|      mutation_rate       |              0.3/0.1/0.01               |      0.1      |
+|   mutation_decay_rate    |                  0.99                   |     0.99      |
+|  mutation_increase_rate  |                  1.01                   |     1.01      |
+|  mutation_decay_method   |                  0.05                   |     0.05      |
+| mutation_increase_method |                  0.01                   |     0.01      |
+
+ 对于随机种子，取 `seed=17/37/42/78/159` 五个随机种子进行测试。
+
+> 随机种子的使用方式：
+>
+> ```python
+> random.seed(seed)
+> np.random.seed(seed+1)
+> Kmeans(..., random_rate=seed+2)
+> ```
+
+#### wi29
+
+首先我们使用 wi29 任务，使用相同参数，测试 init_method, mutation_rate, mutation_rate_method, mutation_method 等策略的使用效果。
+
++ init_method: 可视化每次迭代当前种群的最优距离，观察收敛速度以及最优解距离
+
+  | init_method | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+  | :---------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+  |   random    |  30153  |  27601  |  27749  |  35105  |  28865   |    29894     |
+  |   kmeans    |  29012  |  28650  |  29446  |  27601  |  29677   |    28877     |
+  
+  
+  
+  <center class="half">
+  <img src="./search.assets/image-20250407093044512.png" alt="image-20250407093044512" width=450/>
+  <img src="./search.assets/image-20250407093324952.png" alt="image-20250407093324952" width=450/>
+  </center>
+  
+  可见使用 Kmeans 初始化，初始种群较优，加快了收敛速度，一定程度上也利于找到最优解。
+  
+  故之后测试 **均使用Kmeans初始化**。
+  
++ mutation_rate：可视化每次迭代当前种群的最优距离，观察收敛速度
+
+  （注：本次测试使用 random 初始化）
+
+  + fixed mutation_rate=0.01，平均最优距离为 29338
+
+    <img src="./search.assets/image-20250407095125373.png" alt="image-20250407095125373" style="zoom:50%;" />
+
+  + fixed mutation_rate=0.1，平均最优距离为 29894
+
+    <img src="./search.assets/image-20250407095220950.png" alt="image-20250407095220950" style="zoom:50%;" />
+
+  + fixed mutation_rate=0.3，平均最优距离为 28801
+
+    <img src="./search.assets/image-20250407095316698.png" alt="image-20250407095316698" style="zoom:50%;" />
+
+  + linear mutation_rate (init=0.3)，平均最优距离为 28801
+
+    <img src="./search.assets/image-20250407102608818.png" alt="image-20250407102608818" style="zoom:50%;" />
+
+    <img src="./search.assets/image-20250407102651035.png" alt="image-20250407102651035" style="zoom:50%;" />
+
+  + adaptive mutation_rate (init=0.3)，平均最优距离 30538
+
+    <img src="./search.assets/image-20250407102819402.png" alt="image-20250407102819402" style="zoom:50%;" />
+
+    <img src="./search.assets/image-20250407102912826.png" alt="image-20250407102912826" style="zoom:50%;" />
+
+  分析以上结果，使用固定变异率0.3和线性下降变异率时，平均最优距离最好；动态调整变异率表现较差，但是观察变异率随迭代次数变化图，可以发现由于迭代后期种群最优距离几乎不变，所以变异率一直被限制在最大值0.3，故猜测导致结果较差的原因可能是随机种子所导致的。
+
+  以上，之后的实验 **均使用线性下降变异率**。
+
++ mutation_method：
+
+  | mutation_method | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+  | :-------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+  |      swap       |  28042  |  30463  |  29713  |  28564  |  28865   |    29129     |
+  |     invert      |  28029  |  27601  |  28701  |  28777  |  28413   |    28304     |
+
+  可见，使用逆转变异的平均最优距离更好。故之后实验 **均使用逆转变异**。
+
++ selection_method：
+
+  使用轮盘赌选择方法，会导致代码运行效率降低，为增加运行速度，设置 `population=100`
+
+  |  selection_method   | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+  | :-----------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+  |     tournament      |  28145  |  27601  |  29007  |  27601  |  28777   |    28777     |
+  |      roulette       |  28736  |  27601  |  27601  |  27601  |  27601   |    27828     |
+  | adaptive tournament |  29258  |  28501  |  28501  |  27601  |  28777   |    28527     |
+
+  由平均最优距离可见，三种选择方法排序大概为：roulette > adaptive tournament > tournament
+
+  之后分别观察三者的种群最优距离曲线：
+
+  + tournament：收敛较快，下降陡，但是可能找不到最优解
+
+    <img src="./search.assets/image-20250407113613479.png" alt="image-20250407113613479" style="zoom:50%;" />
+
+  + roulette：收敛速度较缓慢，迭代后期也有可能跳出局部优解，找到最优解
+
+    <img src="./search.assets/image-20250407114308075.png" alt="image-20250407114308075" style="zoom:50%;" />
+
+  + adaptive tournament：动态调整锦标赛由于在初期组大小较大，所以收敛速度比普通锦标赛更快，低于城市数更多的测例，能够加速收敛；后期组大小变低，利于找到最优解。
+
+    <img src="./search.assets/image-20250407114746296.png" alt="image-20250407114746296" style="zoom:50%;" />
+
+  但是 roulette 对于性能开销较大，运行时间较长，所以之后 **均使用动态锦标赛算法**。
+
++ 
 
 ## 四、参考资料
 
