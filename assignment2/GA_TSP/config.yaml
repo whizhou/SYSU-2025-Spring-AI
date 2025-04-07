@@ -8,19 +8,18 @@ tsp_instances:
   - ja9847
 
 default:
-  seed: 273
+  seed: 17  # 17, 37, 42, 78, 159
   init_method: kmeans  # random or kmeans
   init_kmeans:
     n_clusters: 5
-    max_iter: 100
-    random_state: 42
+    max_iter: 300
   population_size: 200
   generation_count: 2000
   tournament_size: 5
   elite_size: 4
-  crossover_rate: 0.9
-  mutation_rate: 0.3
-  mutation_rate_method: adaptive  # adaptive or fixed
+  crossover_rate: 0.8
+  mutation_rate: 0.3  # 0.01, 0.1, 0.3
+  mutation_rate_method: adaptive  # adaptive, fixed or linear
   adaptive_mutation:
     decay_rate: 0.99
     increase_rate: 1.01
@@ -28,7 +27,7 @@ default:
     increase_threshold: 0.01
   selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
   crossover_method: order
-  mutation_method: swap  # swap, invert
+  mutation_method: invert  # swap, invert
   fitness_function: total_distance
   adaptive_tournament:
     max_size: 10

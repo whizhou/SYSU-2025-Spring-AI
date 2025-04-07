@@ -10,6 +10,7 @@ parser = ArgumentParser(description="Genetic Algorithm for TSP")
 parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 parser.add_argument('--best', action='store_true', help='Enable best mode')
 parser.add_argument('--log', action='store_true', help='Enable log mode')
+parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
 args = parser.parse_args()
 
 def read_tsp_data(filename):
@@ -201,7 +202,7 @@ def get_mutate(mutation_rate, generation, logs, cfg):
         if improvement_rate > adapt_cfg['decay_threshold']:
             mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
         elif improvement_rate < adapt_cfg['increase_threshold']:
-            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
+            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.3)
         return mutation_rate
     elif cfg['mutation_rate_method'] == 'fixed':
         return mutation_rate
@@ -258,7 +259,7 @@ def init_population(coords, n, cfg):
         from sklearn.cluster import KMeans
         kmeans_cfg = cfg['init_kmeans']
         n_clusters = kmeans_cfg['n_clusters']
-        kmeans = KMeans(n_clusters=n_clusters, random_state=kmeans_cfg['random_state'])
+        kmeans = KMeans(n_clusters=n_clusters, max_iter=kmeans_cfg['max_iter'], random_state=cfg['seed']+2)
         kmeans.fit(coords)
         labels = kmeans.labels_
         population = []
@@ -364,7 +365,7 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
             'best_distance': best_distance,
             'mutation_rate': mutation_rate
         })
-        if args.debug and generation % 10 == 0:
+        if args.debug and generation % 50 == 0:
             print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}")
     
     return best_path, best_distance, logs
@@ -394,6 +395,8 @@ def main():
         cfg = config.get(tsp_instance, config['default'])
 
     # Set the random seed for reproducibility
+    if args.seed:
+        cfg['seed'] = args.seed
     random.seed(cfg['seed'])
     np.random.seed(cfg['seed'] + 1)
 
@@ -438,7 +441,7 @@ def main():
     # Print the results
     print(f"Task: {tsp_data['NAME']}")
     print(f"Execution time: {exec_time:.2f} seconds")
-    print(f"Best distance: {distance}")
+    print(f"Best distance: {distance:.0f}")
 
     # Save the results to a json file
     result = {

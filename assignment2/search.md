@@ -902,7 +902,42 @@
 
   但是 roulette 对于性能开销较大，运行时间较长，所以之后 **均使用动态锦标赛算法**。
 
-+ 
+#### qa194
+
+使用 wi29 分析后，可以得到部分优化后的参数选项：
+
+|          config          |     default value      |
+| :----------------------: | :--------------------: |
+|       population         |   200                  |
+|       max_generation     |   3000                 |
+|       init_method        |    kmeans              |
+|        n_clusters        |       5                |
+|     selection_method     |  adaptive tournament   |
+|     tournament_size      |       10-5             |
+|        elite_size        |        4               |
+|     crossover_method     |     order     |
+|      crossover_rate      |      0.9      |
+|     mutation_method      |     invert      |
+|   mutation_rate_method   |     linear     |
+|      mutation_rate       |      0.3-0.01      |
+|   mutation_decay_rate    |     0.99      |
+|  mutation_increase_rate  |     1.01      |
+|  mutation_decay_method   |     0.05      |
+| mutation_increase_method |     0.01      |
+
+接下来使用 qa194 测例，考察节点数增加后的参数影响：
+
+|     Task: qa194     | seed=17 | seed=37 | seed=42 | seed=78 | seed=159 | avg best dis |
+| :-----------------: | :-----: | :-----: | :-----: | :-----: | :------: | :----------: |
+|      improvment     |  11432  |  11788  |  12117  |  11293  |  11902   |     11706    |
+|   adaptive mutate   |  10342  |  10402  |  10336  |  10516  |  10461   |     10411    |
+| crossover_rate=0.8  |  11815  |  11545  |  11403  |  11456  |  11184   |     11480    |
+
+可见，在多节点时，使用动态变异率对最终结果有一定的提升，观察变异率曲线，可以发现变异率在中期降低，后期增高至最大值；适当降低交叉率，对于最终结果有些微的改进，大概是由于迭代后期需要适当降低交叉率，以增强在局部搜索的能力。
+
+故我们考虑采用线性下降变异率+线性下降交叉率的方式，前期变异率和交叉率都较高，加快收敛；后期变异率和交叉率降低，对局部进行更精细的搜索。得出结果如下所示：
+
+
 
 ## 四、参考资料
 
