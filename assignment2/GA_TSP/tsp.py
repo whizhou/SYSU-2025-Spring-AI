@@ -9,7 +9,9 @@ from pathlib import Path
 parser = ArgumentParser(description="Genetic Algorithm for TSP")
 parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 parser.add_argument('--best', action='store_true', help='Enable best mode')
+parser.add_argument('--ver', type=str, default='default', help='Version of the configuration to use')
 parser.add_argument('--log', action='store_true', help='Enable log mode')
+parser.add_argument('--seed', type=int, default=None, help='Random seed for reproducibility')
 args = parser.parse_args()
 
 def read_tsp_data(filename):
@@ -154,7 +156,7 @@ def crossover(parent1, parent2, method='order'):
     Args:
         parent1 (list): The first parent path.
         parent2 (list): The second parent path.
-        method (str): The crossover method ('order', 'pmx').
+        method (str): The crossover method ('order').
 
     Returns:
         tuple: Two children paths created
@@ -182,7 +184,7 @@ def crossover(parent1, parent2, method='order'):
 
         return child1, child2
     else:
-        raise ValueError("Invalid crossover method. Use 'order' or 'pmx'.")
+        raise ValueError("Invalid crossover method. Use 'order'.")
 
 def get_mutate(mutation_rate, generation, logs, cfg):
     """
@@ -201,25 +203,27 @@ def get_mutate(mutation_rate, generation, logs, cfg):
         if improvement_rate > adapt_cfg['decay_threshold']:
             mutation_rate = max(mutation_rate * adapt_cfg['decay_rate'], 0.001)
         elif improvement_rate < adapt_cfg['increase_threshold']:
-            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.4)
+            mutation_rate = min(mutation_rate * adapt_cfg['increase_rate'], 0.6)
         return mutation_rate
     elif cfg['mutation_rate_method'] == 'fixed':
         return mutation_rate
     elif cfg['mutation_rate_method'] == 'linear':
         max_generation = cfg['generation_count']
         if generation % 100 == 0:
-            mutation_rate = mutation_rate * (1 - generation / max_generation)
+            mutation_rate = cfg['mutation_rate'] * (1 - generation / max_generation)
         return max(mutation_rate, 0.01)
     else:
         raise ValueError("Invalid mutation rate method.")
 
-def mutate(path, method='swap'):
+def mutate(generation, cfg, path, method='swap'):
     """
     Mutates a path using the specified method.
 
     Args:
+        generation (int): The current generation number.
         path (list): The path to mutate.
-        method (str): The mutation method ('swap', 'invert').
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+        method (str): The mutation method ('swap', 'invert', 'adaptive').
 
     Returns:
         list: The mutated path.
@@ -232,6 +236,11 @@ def mutate(path, method='swap'):
         start = np.random.randint(0, size)
         end = np.random.randint(start + 1, size + 1)
         path[start:end] = reversed(path[start:end])
+    elif method == 'adaptive':
+        if generation / cfg['generation_count'] > 0.8:
+            return mutate(generation, cfg, path, 'swap')
+        else:
+            return mutate(generation, cfg, path, 'invert')
     else:
         raise ValueError("Invalid mutation method. Use 'swap' or 'invert'.")
     
@@ -258,7 +267,7 @@ def init_population(coords, n, cfg):
         from sklearn.cluster import KMeans
         kmeans_cfg = cfg['init_kmeans']
         n_clusters = kmeans_cfg['n_clusters']
-        kmeans = KMeans(n_clusters=n_clusters, random_state=kmeans_cfg['random_state'])
+        kmeans = KMeans(n_clusters=n_clusters, max_iter=kmeans_cfg['max_iter'], random_state=cfg['seed']+2)
         kmeans.fit(coords)
         labels = kmeans.labels_
         population = []
@@ -273,6 +282,26 @@ def init_population(coords, n, cfg):
     else:
         raise ValueError("Invalid initialization method. Use 'random' or 'kmeans'.")
     return population
+
+
+def get_crossover_rate(crossover_rate, generation, cfg):
+    """
+    Gets the crossover rate based on the current generation.
+    
+    Args:
+        crossover_rate (float): The current crossover rate.
+        generation (int): The current generation number.
+        cfg (dict): Configuration dictionary containing the parameters for the algorithm.
+    """
+    if cfg['crossover_rate_method'] == 'linear':
+        max_generation = cfg['generation_count']
+        if generation % 100 == 0:
+            crossover_rate = 0.6 + (cfg['crossover_rate'] - 0.6) * (1 - generation / max_generation)
+        return max(crossover_rate, 0.6)
+    elif cfg['crossover_rate_method'] == 'fixed':
+        return crossover_rate
+    else:
+        raise ValueError("Invalid crossover rate method.")
 
 def genetic_tsp(coords, distance_matrix, n, cfg):
     """
@@ -306,19 +335,13 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
 
     # Initialize the population
     population = init_population(coords, n, cfg)
-    # for i in range(population_size):
-    #     population.append(random.sample(range(n), n))
-    # if args.debug:
-        # print(f"Initial population: {population}")
     
     # Initialize the best path and distance
     best_path = min(population, key=lambda path: calculate_distance(path, distance_matrix))
     best_distance = calculate_distance(best_path, distance_matrix)
     logs = [{
         'generation': 0,
-        # 'cur_best_path': best_path,
         'cur_best_distance': best_distance,
-        # 'best_path': best_path,
         'best_distance': best_distance,
         'mutation_rate': mutation_rate,
     }]
@@ -334,8 +357,9 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
         # Elitism
         new_population.extend(sorted_population[:elite_size])
 
-        # Mutation rate
+        # Mutation rate and Crossover rate adjustment
         mutation_rate = get_mutate(mutation_rate, generation, logs, cfg)
+        crossover_rate = get_crossover_rate(crossover_rate, generation, cfg)
 
         # Crossover and mutation
         while len(new_population) < population_size:
@@ -348,9 +372,9 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
                 child1, child2 = parent1[:], parent2[:]
 
             if np.random.rand() < mutation_rate:
-                mutate(child1, cfg['mutation_method'])
+                mutate(generation, cfg, child1, cfg['mutation_method'])
             if np.random.rand() < mutation_rate:
-                mutate(child2, cfg['mutation_method'])
+                mutate(generation, cfg, child2, cfg['mutation_method'])
 
             new_population.append(child1)
             new_population.append(child2)
@@ -366,14 +390,12 @@ def genetic_tsp(coords, distance_matrix, n, cfg):
 
         logs.append({
             'generation': generation + 1,
-            # 'cur_best_path': cur_best_path,
             'cur_best_distance': cur_best_distance,
-            # 'best_path': best_path,
             'best_distance': best_distance,
             'mutation_rate': mutation_rate
         })
-        if args.debug and generation % 10 == 0:
-            print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}")
+        if args.debug and generation % 50 == 0:
+            print(f"Generation {generation + 1}: Best distance: {int(best_distance)}, Current Best dis: {int(cur_best_distance)}, Mutation rate: {mutation_rate}, Crossover rate: {crossover_rate}")
     
     return best_path, best_distance, logs
 
@@ -399,9 +421,11 @@ def main():
     if args.best:
         cfg = config.get(f'{tsp_instance}_best', config['default'])
     else:
-        cfg = config.get(tsp_instance, config['default'])
+        cfg = config.get(args.ver, config['default'])
 
     # Set the random seed for reproducibility
+    if args.seed:
+        cfg['seed'] = args.seed
     random.seed(cfg['seed'])
     np.random.seed(cfg['seed'] + 1)
 
@@ -420,11 +444,15 @@ def main():
     print("\nConfiguration:")
     print(f"Seed: {cfg['seed']}")
     print(f"Initialization Method: {cfg['init_method']}")
+    if cfg['init_method'] == 'kmeans':
+        print(f"KMeans Clusters: {cfg['init_kmeans']['n_clusters']}")
+        print(f"KMeans Max Iterations: {cfg['init_kmeans']['max_iter']}")
     print(f"Population Size: {cfg['population_size']}")
     print(f"Generation Count: {cfg['generation_count']}")
     print(f"Tournament Size: {cfg['tournament_size']}")
     print(f"Elite Size: {cfg['elite_size']}")
     print(f"Crossover Rate: {cfg['crossover_rate']}")
+    print(f"Crossover Rate Method: {cfg['crossover_rate_method']}")
     print(f"Mutation Rate: {cfg['mutation_rate']}")
     print(f"Mutation Rate Method: {cfg['mutation_rate_method']}")
     print(f"Selection Method: {cfg['selection_method']}")
@@ -446,7 +474,7 @@ def main():
     # Print the results
     print(f"Task: {tsp_data['NAME']}")
     print(f"Execution time: {exec_time:.2f} seconds")
-    print(f"Best distance: {distance}")
+    print(f"Best distance: {distance:.0f}")
 
     # Save the results to a json file
     result = {
@@ -492,7 +520,7 @@ def plot_path(coords, path, tsp_instance, distance, output_file):
     import matplotlib.pyplot as plt
 
     plt.figure(figsize=(10, 6))
-    plt.plot(coords[path, 0], coords[path, 1], 'o-', markersize=2)
+    plt.plot(coords[path, 0], coords[path, 1], 'o-', markersize=3)
     plt.plot([coords[path[-1], 0], coords[path[0], 0]], [coords[path[-1], 1], coords[path[0], 1]], 'o-')
     plt.title('TSP Instance: {}, Distance: {:.0f}'.format(tsp_instance, distance))
     plt.xlabel('X Coordinate')

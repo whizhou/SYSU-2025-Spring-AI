@@ -1,9 +1,7 @@
-Time taken: 33.19 seconds
-Visited nodes: 738747
+Time taken: 51.66 seconds
 Directions: SDLLURRURDDLLURURULDRDLULLDDRRULUULDDDRUUURRDLDRD
 Path: [9, 12, 13, 5, 1, 9, 7, 11, 2, 4, 12, 13, 9, 7, 11, 2, 15, 3, 2, 15, 4, 11, 15, 8, 14, 1, 5, 9, 13, 15, 7, 14, 10, 6, 1, 5, 9, 13, 14, 10, 6, 2, 3, 4, 8, 7, 11, 12]
 Path length: 48
-
 Step 0, Start:
 6 10 3 15
 14 8 7 11

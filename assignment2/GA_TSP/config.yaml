@@ -1,32 +1,33 @@
-task_id: 1
+task_id: 2
 data_dir: data  # relative path to the data directory
 tsp_instances:
   - wi29
   - qa194
+  - zi929
   - rw1621
   - mu1979
   - ja9847
 
 default:
-  seed: 273
-  init_method: kmeans  # random or kmeans
+  seed: 17  # 17, 37, 42, 78, 159
+  init_method: random  # random or kmeans
   init_kmeans:
     n_clusters: 5
-    max_iter: 100
-    random_state: 42
+    max_iter: 300
   population_size: 200
   generation_count: 2000
   tournament_size: 5
   elite_size: 4
   crossover_rate: 0.9
-  mutation_rate: 0.3
-  mutation_rate_method: adaptive  # adaptive or fixed
+  crossover_rate_method: fixed  # fixed or linear
+  mutation_rate: 0.1  # 0.01, 0.1, 0.3
+  mutation_rate_method: linear  # adaptive, fixed or linear
   adaptive_mutation:
     decay_rate: 0.99
     increase_rate: 1.01
     decay_threshold: 0.05
     increase_threshold: 0.01
-  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+  selection_method: tournament  # tournament, roulette or adaptive_tournament
   crossover_method: order
   mutation_method: swap  # swap, invert
   fitness_function: total_distance
@@ -34,25 +35,137 @@ default:
     max_size: 10
     min_size: 5
 
-    
-
-
-wi29_best:
-  seed: 37
-  init_method: random
+improvement:
+  seed: 17  # 17, 37, 42, 78, 159
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 5
+    max_iter: 300
   population_size: 200
-  generation_count: 1000
+  generation_count: 2000
   tournament_size: 5
-  elite_size: 10
+  elite_size: 4
   crossover_rate: 0.9
-  mutation_rate: 0.01
-  mutation_rate_method: fixed  # adaptive or fixed
+  crossover_rate_method: linear  # fixed or linear
+  mutation_rate: 0.3  # 0.01, 0.1, 0.3
+  mutation_rate_method: linear  # adaptive, fixed or linear
   adaptive_mutation:
     decay_rate: 0.99
     increase_rate: 1.01
-    decay_threshold: 0.01
-    increase_threshold: 0.05
-  selection_method: tournament  # tournament or roulette
+    decay_threshold: 0.05
+    increase_threshold: 0.01
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
   crossover_method: order
   mutation_method: invert  # swap, invert
   fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 10
+    min_size: 5
+
+improvement2:
+  seed: 17  # 17, 37, 42, 78, 159
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 50
+    max_iter: 300
+  population_size: 200
+  generation_count: 3000
+  tournament_size: 5
+  elite_size: 4
+  crossover_rate: 0.9
+  crossover_rate_method: linear  # fixed or linear
+  mutation_rate: 0.3  # 0.01, 0.1, 0.3
+  mutation_rate_method: adaptive  # adaptive, fixed or linear
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.05
+    increase_threshold: 0.01
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+  crossover_method: order  # order or pmx
+  mutation_method: adaptive  # swap, invert or adaptive
+  fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 10
+    min_size: 5
+
+wi29_best:
+  seed: 42  # 17, 37, 42, 78, 159
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 5
+    max_iter: 300
+  population_size: 200
+  generation_count: 2000
+  tournament_size: 5
+  elite_size: 4
+  crossover_rate: 0.9
+  crossover_rate_method: linear  # fixed or linear
+  mutation_rate: 0.1  # 0.01, 0.1, 0.3
+  mutation_rate_method: linear  # adaptive, fixed or linear
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.05
+    increase_threshold: 0.01
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+  crossover_method: order
+  mutation_method: invert  # swap, invert
+  fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 10
+    min_size: 5
+
+qa194_best:
+  seed: 42  # 17, 37, 42, 78, 159
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 5
+    max_iter: 300
+  population_size: 200
+  generation_count: 2000
+  tournament_size: 5
+  elite_size: 4
+  crossover_rate: 0.9
+  crossover_rate_method: linear  # fixed or linear
+  mutation_rate: 0.3  # 0.01, 0.1, 0.3
+  mutation_rate_method: adaptive  # adaptive, fixed or linear
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.05
+    increase_threshold: 0.01
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+  crossover_method: order  # order or pmx
+  mutation_method: adaptive  # swap, invert or adaptive
+  fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 10
+    min_size: 5
+
+zi929_best:
+  seed: 17  # 17, 37, 42, 78, 159
+  init_method: kmeans  # random or kmeans
+  init_kmeans:
+    n_clusters: 50
+    max_iter: 300
+  population_size: 200
+  generation_count: 3000
+  tournament_size: 5
+  elite_size: 4
+  crossover_rate: 0.9
+  crossover_rate_method: linear  # fixed or linear
+  mutation_rate: 0.6  # 0.01, 0.1, 0.3
+  mutation_rate_method: adaptive  # adaptive, fixed or linear
+  adaptive_mutation:
+    decay_rate: 0.99
+    increase_rate: 1.01
+    decay_threshold: 0.05
+    increase_threshold: 0.01
+  selection_method: adaptive_tournament  # tournament, roulette or adaptive_tournament
+  crossover_method: order  # order or pmx
+  mutation_method: adaptive  # swap, invert or adaptive
+  fitness_function: total_distance
+  adaptive_tournament:
+    max_size: 20
+    min_size: 5

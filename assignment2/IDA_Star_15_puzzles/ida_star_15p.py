@@ -20,19 +20,22 @@ class Node:
 
     def __init__(self,
             state: list,
-            gs: int,
             parent: 'Node' = None,
-            direction: int = -1):
+            gs: int = 0,
+            direction: int = -1,
+            number: int = 0):
         self.state = tuple(tuple(row) for row in state)
         self.parent = parent
         self.gs = gs
         self.direction = direction
+        self.number = number
         self.hs = self.hScore()
         self.fs = self.gs + self.hs
         self._hash = hash(self.state)
 
     def hScore(self) -> int:
         distance = 0
+        # Manhattan Distance Heuristic
         for i in range(4):
             for j in range(4):
                 val = self.state[i][j]
@@ -41,13 +44,25 @@ class Node:
                 target_x = (val - 1) // 4
                 target_y = (val - 1) % 4
                 distance += abs(i - target_x) + abs(j - target_y)
+        # Linear Conflict Heuristic
+        for i in range(4):
+            row = [self.state[i][j] - 1 for j in range(4) if self.state[i][j] != 0]
+            for j in range(len(row) - 1):
+                for k in range(j + 1, len(row)):
+                    if (row[j] // 4 == i) and (row[k] // 4 == i) and (row[j] % 4 > row[k] % 4):
+                        distance += 2
+            col = [self.state[j][i] - 1 for j in range(4) if self.state[j][i] != 0]
+            for j in range(len(col) - 1):
+                for k in range(j + 1, len(col)):
+                    if (col[j] % 4 == i) and (col[k] % 4 == i) and (col[j] // 4 > col[k] // 4):
+                        distance += 2
         return distance
 
     def neighbors(self):
         """
         Generate all possible states by moving the blank space
         Returns:
-            
+            generator of Node objects representing the neighbors
         """
         x, y = next((i, j) for i in range(4) for j in range(4) if self.state[i][j] == 0)
         for dir, (dx, dy) in enumerate(self.directions):
@@ -55,7 +70,7 @@ class Node:
             if 0 <= nx < 4 and 0 <= ny < 4:
                 new_state = [list(row) for row in self.state]
                 new_state[x][y], new_state[nx][ny] = new_state[nx][ny], new_state[x][y]
-                yield Node(new_state, self.gs + 1, self, dir)
+                yield Node(new_state, self, self.gs + 1, dir, self.state[nx][ny])
 
     def __lt__(self, other: 'Node') -> bool:
         return self.fs < other.fs
@@ -78,7 +93,7 @@ def IDA_star(start_state: list, args) -> list:
     Returns:
         list: The path from the start state to the goal state.
     """
-    start_node = Node(start_state, 0)
+    start_node = Node(start_state)
     threshold = start_node.hs
 
     path = [start_node]
@@ -91,27 +106,6 @@ def IDA_star(start_state: list, args) -> list:
         elif fs_min == float('inf'):
             return None
         threshold = fs_min
-
-
-    # Depth-limited search
-    # while threshold < float('inf'):
-    #     stack = [start_node]
-    #     fs_min = float('inf')
-    #     while stack:
-    #         cur_node = stack.pop()
-    #         if cur_node.state == Node.target:
-    #             return backtrace(cur_node)
-            
-    #         if cur_node.fs > threshold:
-    #             fs_min = min(fs_min, cur_node.fs)
-    #             continue
-
-    #         for neighbor in cur_node.neighbors():
-    #             stack.append(neighbor)
-
-    #     threshold = fs_min
-    
-    return None
 
 def DepthLimitedSearch(path: list, node: Node, threshold: int) -> tuple:
     """
@@ -155,15 +149,18 @@ def run(test_id: int, args) -> None:
     path = IDA_star(start_state[test_id], args)
     end_time = time.time()
 
-    save_path = Path(__file__).resolve().parent.joinpath(f'out_IDA_{test_id}.txt')
+    save_path = Path(__file__).resolve().parent.joinpath(f'out_IDA_{test_id}_LC.txt')
     with open(save_path, "w") as f:
         dir = ["Right", "Down", "Left", "Up", "Start"]
         f.write(f"Time taken: {end_time - start_time:.2f} seconds\n")
         dir_brief = ["R", "D", "L", "U", "S"]
         path_str = ''
+        number_path = []
         for i, node in enumerate(path):
             path_str += dir_brief[node.direction]
-        f.write(f"Path: {path_str}\n")
+            number_path.append(node.number)
+        f.write(f"Directions: {path_str}\n")
+        f.write(f"Path: {number_path[1:]}\n")
         f.write(f"Path length: {len(path) - 1}\n")
         for i, node in enumerate(path):
             f.write(f"Step {i}, {dir[node.direction]}:\n")
