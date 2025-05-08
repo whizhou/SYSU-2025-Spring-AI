@@ -1,3 +1,8 @@
 __pycache__/
 output/
 submit/
+data/
+files/
+report/
+*.npy
+*.csv
