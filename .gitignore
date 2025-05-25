@@ -6,3 +6,4 @@ files/
 report/
 *.npy
 *.csv
+checkpoints/
