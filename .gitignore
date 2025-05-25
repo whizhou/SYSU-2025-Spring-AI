@@ -7,3 +7,6 @@ report/
 *.npy
 *.csv
 checkpoints/
+runs/
+.idea/
+*.pth
