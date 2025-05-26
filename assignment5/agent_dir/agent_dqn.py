@@ -86,6 +86,10 @@ class AgentDQN(Agent):
         ##################
         # YOUR CODE HERE #
         ##################
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+        random.seed(args.seed)
+        
         self.env = env
         self.args = args
         
@@ -243,8 +247,8 @@ class AgentDQN(Agent):
                 self.replay_buffer.push(state, action, reward, next_state, done)
                 
                 # Train the network
-                # for _ in range(4):
-                loss = self.train()
+                for _ in range(min(4, int(len(self.replay_buffer) / self.batch_size))):
+                    loss = self.train()
                 
                 # Update state and reward
                 state = next_state
